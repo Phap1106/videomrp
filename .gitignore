@@ -1,0 +1,18 @@
+# env files (never push)
+.env
+.env.*
+!.env.example
+
+# backend env (if you keep them inside folder)
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+
+# optional: python/venv, node, build outputs
+**/venv/
+**/.venv/
+**/node_modules/
+**/.next/
+**/dist/
+**/build/
