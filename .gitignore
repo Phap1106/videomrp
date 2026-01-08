@@ -1,18 +1,17 @@
-# env files (never push)
+# env files
 .env
 .env.*
 !.env.example
-
-# backend env (if you keep them inside folder)
 backend/.env
 backend/.env.*
-frontend/.env
-frontend/.env.*
 
-# optional: python/venv, node, build outputs
+# python venv + caches
 **/venv/
 **/.venv/
-**/node_modules/
-**/.next/
-**/dist/
-**/build/
+**/__pycache__/
+**/*.pyc
+
+# runtime folders (không push)
+backend/uploads/
+backend/data/
+backend/temp/
