@@ -1,0 +1,16 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic-settings==2.7.1
+
+SQLAlchemy==2.0.36
+
+python-multipart==0.0.20
+aiofiles==24.1.0
+httpx==0.28.1
+
+# AI blocks (optional but recommended)
+faster-whisper==1.1.1
+argostranslate==1.9.6
+
+# Utilities
+tenacity==9.0.0
