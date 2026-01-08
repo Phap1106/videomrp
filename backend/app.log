@@ -1,0 +1,13 @@
+2026-01-08 13:04:57,043 - __main__ - INFO - ==================================================
+2026-01-08 13:04:57,043 - __main__ - INFO - Starting AI Video Factory v2.0
+2026-01-08 13:04:57,044 - __main__ - INFO - Server: http://0.0.0.0:5000
+2026-01-08 13:04:57,044 - __main__ - INFO - Data directory: D:\video_tool\backend\data
+2026-01-08 13:04:57,045 - __main__ - INFO - Uploads: D:\video_tool\backend\data\uploads
+2026-01-08 13:04:57,045 - __main__ - INFO - Processed: D:\video_tool\backend\data\processed
+2026-01-08 13:04:57,045 - __main__ - INFO - Thumbnails: D:\video_tool\backend\data\thumbnails
+2026-01-08 13:04:57,045 - __main__ - INFO - ==================================================
+2026-01-08 13:29:45,638 - __main__ - INFO - Received signal 2. Shutting down gracefully...
+2026-01-08 13:29:45,638 - __main__ - INFO - Shutting down... Cleaning up resources
+2026-01-08 13:29:45,639 - __main__ - INFO - Cleanup completed
+2026-01-08 13:29:45,641 - __main__ - INFO - Shutting down... Cleaning up resources
+2026-01-08 13:29:45,642 - __main__ - INFO - Cleanup completed
