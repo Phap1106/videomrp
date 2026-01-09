@@ -1,26 +1,60 @@
+version: '3.8'
+
 services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: video_reup_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
   redis:
-    image: redis:7
+    image: redis:7-alpine
     ports:
       - "6379:6379"
+
   backend:
-    build: ./backend
+    build: .
     ports:
-      - "5000:5000"
+      - "8000:8000"
     environment:
+      - DB_URL=postgresql://user:password@postgres:5432/video_reup_db
       - REDIS_URL=redis://redis:6379/0
-      - FRONTEND_ORIGIN=http://localhost:3000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      - ./backend/storage:/app/storage
+      - ./data:/app/data
+      - ./models:/app/models
     depends_on:
+      - postgres
       - redis
+
   worker:
-    build: ./backend
-    command: ["python", "-m", "app.workers.worker"]
+    build: .
+    command: ["python", "-m", "app.worker"]
     environment:
+      - DB_URL=postgresql://user:password@postgres:5432/video_reup_db
       - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      - ./backend/storage:/app/storage
+      - ./data:/app/data
+      - ./models:/app/models
     depends_on:
+      - postgres
       - redis
       - backend
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

@@ -1,91 +1,161 @@
-from fastapi import FastAPI, Depends, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
-from datetime import datetime
-from pathlib import Path
+from contextlib import asynccontextmanager
+import time
+import os
+from loguru import logger
 
-from .core.config import settings
-from .core.paths import ensure_dirs, PROCESSED_DIR, UPLOADS_DIR
-from .db import Base, engine, get_db
-from .schemas import JobCreate, JobOut
-from .models import VideoJob
-from .pipeline import create_job, process_job
+from app.core.logger import setup_logging
+from app.core.config import settings
+from app.database import engine, Base
+from app.api.endpoints import api_router
+from app.utils.file_utils import ensure_dirs
 
-app = FastAPI(title=settings.app_name)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan events"""
+    # Startup
+    logger.info("🚀 Starting Video Reup AI Tool v2.0.0")
+    logger.info(f"Environment: {settings.APP_ENV}")
+    logger.info(f"Debug mode: {settings.DEBUG}")
+    
+    # Create database tables
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("✅ Database tables created")
+    except Exception as e:
+        logger.error(f"❌ Database error: {e}")
+    
+    # Ensure directories exist
+    try:
+        ensure_dirs()
+        logger.info("✅ Directories created")
+    except Exception as e:
+        logger.error(f"❌ Directory error: {e}")
+    
+    yield
+    
+    # Shutdown
+    logger.info("👋 Shutting down...")
 
-@app.on_event("startup")
-def on_startup():
-    ensure_dirs()
-    Base.metadata.create_all(bind=engine)
+# Setup logging
+setup_logging()
 
-app.mount("/processed", StaticFiles(directory=str(PROCESSED_DIR)), name="processed")
+# Create FastAPI app
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="AI-powered video reuploading tool for TikTok, YouTube, Facebook, Instagram, Douyin",
+    docs_url="/api/docs" if settings.DEBUG else None,
+    redoc_url="/api/redoc" if settings.DEBUG else None,
+    openapi_url="/api/openapi.json" if settings.DEBUG else None,
+    lifespan=lifespan,
+)
+
+# Add middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Exception handlers
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning(f"Validation error: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "detail": exc.errors(),
+            "body": exc.body,
+        },
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error"},
+    )
+
+# Request timing middleware
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
+
+# Mount static files
+if os.path.exists("data/processed"):
+    app.mount("/processed", StaticFiles(directory="data/processed"), name="processed")
+
+# Include routers
+app.include_router(api_router, prefix="/api")
+
+# Root endpoint
+@app.get("/")
+async def root():
+    return {
+        "name": settings.APP_NAME,
+        "version": settings.APP_VERSION,
+        "docs": "/api/docs",
+        "health": "/api/health",
+        "status": "running"
+    }
 
 @app.get("/api/health")
-def health():
-    return {"ok": True, "time": datetime.utcnow().isoformat()}
-
-@app.post("/api/jobs", response_model=JobOut)
-async def api_create_job(payload: JobCreate, bg: BackgroundTasks, db: Session = Depends(get_db)):
-    job = create_job(
-        db,
-        title=payload.title,
-        source_url=payload.source_url,
-        target_lang=payload.target_lang,
-        clip_seconds=payload.clip_seconds,
-        style_preset=payload.style_preset,
-        subtitles=payload.subtitles,
-        voiceover=payload.voiceover,
-        make_shorts=payload.make_shorts,
+async def health_check():
+    """Health check endpoint"""
+    from app.database import SessionLocal
+    from redis import Redis
+    
+    checks = {
+        "api": True,
+        "database": False,
+        "redis": False,
+        "storage": False,
+    }
+    
+    try:
+        # Test database
+        db = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+        checks["database"] = True
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+    
+    try:
+        # Test Redis
+        redis_client = Redis.from_url(settings.REDIS_URL)
+        redis_client.ping()
+        checks["redis"] = True
+    except Exception as e:
+        logger.error(f"Redis health check failed: {e}")
+    
+    # Test storage
+    if os.path.exists("data") and os.access("data", os.W_OK):
+        checks["storage"] = True
+    
+    status_code = 200 if all(checks.values()) else 503
+    
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "healthy" if all(checks.values()) else "unhealthy",
+            "checks": checks,
+            "timestamp": time.time(),
+            "version": settings.APP_VERSION,
+        }
     )
-    bg.add_task(process_job, db, job.id)
-    return JobOut(
-        id=job.id, title=job.title, status=job.status.value, progress=job.progress,
-        current_step=job.current_step, error_message=job.error_message,
-        created_at=job.created_at.isoformat(), updated_at=job.updated_at.isoformat(),
-        processed_filename=f"{job.id}.mp4" if job.output_path else None
-    )
-
-@app.post("/api/jobs/upload", response_model=JobOut)
-async def api_upload_job(
-    bg: BackgroundTasks,
-    file: UploadFile = File(...),
-    title: str = "",
-    target_lang: str = "vi",
-    clip_seconds: int = 0,
-    subtitles: bool = True,
-    voiceover: bool = False,
-    db: Session = Depends(get_db),
-):
-    import uuid
-    jid = str(uuid.uuid4())
-    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    in_path = UPLOADS_DIR / f"{jid}_{file.filename}"
-    content = await file.read()
-    in_path.write_bytes(content)
-
-    job = VideoJob(
-        id=jid, title=title or file.filename, source_type="upload", source_url="",
-        input_path=str(in_path), target_lang=target_lang,
-        clip_seconds=clip_seconds, subtitles=1 if subtitles else 0, voiceover=1 if voiceover else 0
-    )
-    db.add(job); db.commit()
-    bg.add_task(process_job, db, job.id)
-
-    return JobOut(
-        id=job.id, title=job.title, status=job.status.value, progress=job.progress,
-        current_step=job.current_step, error_message=job.error_message,
-        created_at=job.created_at.isoformat(), updated_at=job.updated_at.isoformat()
-    )
-
-@app.get("/api/jobs", response_model=list[JobOut])
-def api_list_jobs(db: Session = Depends(get_db)):
-    jobs = db.query(VideoJob).order_by(VideoJob.created_at.desc()).all()
-    out = []
-    for j in jobs:
-        out.append(JobOut(
-            id=j.id, title=j.title, status=j.status.value, progress=j.progress,
-            current_step=j.current_step, error_message=j.error_message,
-            created_at=j.created_at.isoformat(), updated_at=j.updated_at.isoformat(),
-            processed_filename=f"{j.id}.mp4" if j.output_path else None
-        ))
-    return out

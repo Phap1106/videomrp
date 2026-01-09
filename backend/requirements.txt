@@ -1,16 +1,61 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-pydantic-settings==2.7.1
+# Core
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+pydantic-settings==2.1.0
 
-SQLAlchemy==2.0.36
+# Database
+sqlalchemy==2.0.23
+alembic==1.12.1
+pymysql==1.1.0
+aiomysql==0.2.0
+redis==5.0.1
 
-python-multipart==0.0.20
-aiofiles==24.1.0
-httpx==0.28.1
+# AI/ML
+openai==1.3.0
+google-generativeai==0.3.0
+faster-whisper==0.9.0
+torch==2.1.0
+torchvision==0.16.0
+torchaudio==2.1.0
+transformers==4.35.2
+sentencepiece==0.1.99
+protobuf==4.25.1
 
-# AI blocks (optional but recommended)
-faster-whisper==1.1.1
-argostranslate==1.9.6
+# Computer Vision
+opencv-python-headless==4.8.1.78
+pillow==10.1.0
+numpy==1.24.3
+
+# Video Processing
+moviepy==1.0.3
+yt-dlp==2023.11.16
+
+# HTTP Client
+httpx==0.25.1
+aiofiles==23.2.1
+aiohttp==3.9.1
+
+# Async
+celery==5.3.4
+celery[redis]
 
 # Utilities
-tenacity==9.0.0
+python-dotenv==1.0.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-magic==0.4.27
+tenacity==8.2.3
+tqdm==4.66.1
+loguru==0.7.2
+
+# Monitoring
+prometheus-client==0.19.0
+sentry-sdk[fastapi]==1.38.0
+
+# Development
+black==23.11.0
+flake8==6.1.0
+pytest==7.4.3
+pytest-asyncio==0.21.1
