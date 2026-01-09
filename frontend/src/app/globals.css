@@ -1,64 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
-}
-
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: #1f2937;
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #3b82f6, #10b981);
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #2563eb, #059669);
-}
-
-/* Smooth transitions */
-* {
-  transition: background-color 0.3s ease, border-color 0.3s ease;
-}
-
-/* Custom animations */
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; background: #fafafa; color: #111; }
+a { color: #111; }
+.container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+.card { background: #fff; border: 1px solid #e6e6e6; border-radius: 14px; padding: 14px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.label { font-size: 12px; font-weight: 700; opacity: .75; margin-bottom: 6px; }
+.input, .select, .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #d9d9d9; background: #fff; }
+.input, .select { width: 100%; }
+.btn { cursor: pointer; border-color: #111; background: #111; color: #fff; }
+.btn.secondary { background: #fff; color: #111; border-color: #d9d9d9; }
+.btn:disabled { opacity: .7; cursor: not-allowed; }
+.hr { height: 1px; background: #eee; margin: 12px 0; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: left; vertical-align: top; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"; font-size: 12px; }
+.small { font-size: 12px; opacity: .8; }
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; border: 1px solid #ddd; font-size: 12px; }
