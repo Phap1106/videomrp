@@ -1,67 +1,59 @@
-FROM python:3.10-slim
+# Stage 1: Build
+FROM python:3.11-slim as builder
 
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    pkg-config \
-    libavcodec-dev \
-    libavdevice-dev \
-    libavfilter-dev \
-    libavformat-dev \
-    libavutil-dev \
-    libswresample-dev \
-    libswscale-dev \
-    libpostproc-dev \
-    libsm6 \
-    libxext6 \
-    libgl1 \
-    libglib2.0-0 \
-    libgomp1 \
-    git \
-    wget \
-    curl \
+RUN apt-get update && apt-get install -y \
     build-essential \
+    libpq-dev \
     gcc \
-    g++ \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements and install Python dependencies
+COPY requirements. txt 
+RUN pip install --user --no-cache-dir -r requirements.txt
 
-# Create non-root user
-RUN useradd -m -u 1000 -s /bin/bash appuser && \
-    chown -R appuser:appuser /app
+# Stage 2: Runtime
+FROM python:3.11-slim
 
-# Copy requirements
-COPY requirements.txt .
+WORKDIR /app
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libpq5 \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    fonts-dejavu \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install PyTorch with CPU only
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+# Copy Python packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Set PATH
+ENV PATH=/root/.local/bin:$PATH
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
 # Copy application code
 COPY . .
 
-# Create directories
-RUN mkdir -p /app/data/uploads /app/data/processed /app/data/temp /app/logs && \
-    chown -R appuser:appuser /app/data /app/logs
+# Create necessary directories
+RUN mkdir -p /app/data/{uploads,processed,temp,jobs,voice_samples,fonts} \
+    && mkdir -p /app/logs
 
-# Download AI models on build (optional)
-RUN mkdir -p /app/models && \
-    python -c "from faster_whisper import WhisperModel; print('Downloading Whisper model...'); model = WhisperModel('small')"
+# Download default fonts if needed
+RUN mkdir -p /app/data/fonts
 
-# Switch to non-root user
-USER appuser
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/health || exit 1
-
 # Run application
-CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

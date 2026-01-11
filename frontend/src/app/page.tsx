@@ -1,146 +1,334 @@
+// 'use client';
+
+// import { useEffect, useState } from 'react';
+// import { Video, Settings, AlertCircle, Loader } from 'lucide-react';
+// import toast from 'react-hot-toast';
+// import { apiClient } from '@/lib/api-client';
+// import { useAppStore } from '@/lib/store';
+// import { ReupVideoFeature } from '@/components/features/ReupVideoFeature';
+// import { StoryVideoFeature } from '@/components/features/StoryVideoFeature';
+// import clsx from 'clsx';
+
+// export default function HomePage() {
+//   const [selectedTab, setSelectedTab] = useState<'reup' | 'story'>('reup');
+//   const [healthStatus, setHealthStatus] = useState<any>(null);
+//   const [isLoading, setIsLoading] = useState(true);
+//   const [hasError, setHasError] = useState(false);
+
+//   useEffect(() => {
+//     const checkHealth = async () => {
+//       try {
+//         setIsLoading(true);
+//         const health = await apiClient.getHealth();
+//         setHealthStatus(health);
+//         setHasError(! health.api);
+//       } catch (error) {
+//         toast.error('Không thể kết nối đến backend');
+//         setHasError(true);
+//       } finally {
+//         setIsLoading(false);
+//       }
+//     };
+
+//     checkHealth();
+//     const interval = setInterval(checkHealth, 10000);
+//     return () => clearInterval(interval);
+//   }, []);
+
+//   if (isLoading) {
+//     return (
+//       <div className="flex items-center justify-center min-h-screen">
+//         <div className="text-center">
+//           <Loader className="w-12 h-12 mx-auto mb-4 text-purple-600 animate-spin" />
+//           <p className="text-lg font-semibold">Đang tải...</p>
+//         </div>
+//       </div>
+//     );
+//   }
+
+//   return (
+//     <main className="min-h-screen px-4 py-8 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+//       <div className="mx-auto max-w-7xl">
+//         {/* Header */}
+//         <div className="mb-8">
+//           <div className="flex items-center gap-3 mb-4">
+//             <Video className="w-8 h-8 text-purple-600" />
+//             <h1 className="text-4xl font-bold text-white">Video Reup AI Factory</h1>
+//           </div>
+//           <p className="text-lg text-gray-400">
+//             Công cụ tự động xử lý, chỉnh sửa và tái đăng video với AI
+//           </p>
+//         </div>
+
+//         {/* Health Status */}
+//         {hasError && (
+//           <div className="flex items-start gap-3 p-4 mb-6 border rounded-lg bg-red-500/10 border-red-500/50">
+//             <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+//             <div>
+//               <h3 className="mb-1 font-semibold text-red-600">Lỗi Kết Nối</h3>
+//               <p className="text-sm text-red-600">
+//                 Không thể kết nối đến backend. Vui lòng kiểm tra xem server có đang chạy không.
+//               </p>
+//             </div>
+//           </div>
+//         )}
+
+//         {healthStatus && ! hasError && (
+//           <div className="p-4 mb-6 border rounded-lg bg-green-500/10 border-green-500/50">
+//             <div className="flex items-center justify-between">
+//               <div>
+//                 <h3 className="mb-2 font-semibold text-green-600">Hệ Thống Khỏe Mạnh</h3>
+//                 <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+//                   <div>
+//                     <span className="text-gray-400">API:</span>{' '}
+//                     <span className={healthStatus.api ? 'text-green-600' : 'text-red-600'}>
+//                       {healthStatus.api ? '✓ OK' : '✗ Error'}
+//                     </span>
+//                   </div>
+//                   <div>
+//                     <span className="text-gray-400">Database:</span>{' '}
+//                     <span className={healthStatus. database ? 'text-green-600' : 'text-red-600'}>
+//                       {healthStatus.database ? '✓ OK' : '✗ Error'}
+//                     </span>
+//                   </div>
+//                   <div>
+//                     <span className="text-gray-400">Redis:</span>{' '}
+//                     <span className={healthStatus. redis ? 'text-green-600' : 'text-red-600'}>
+//                       {healthStatus.redis ? '✓ OK' : '✗ Error'}
+//                     </span>
+//                   </div>
+//                   <div>
+//                     <span className="text-gray-400">Storage:</span>{' '}
+//                     <span className={healthStatus. storage ? 'text-green-600' : 'text-red-600'}>
+//                       {healthStatus.storage ? '✓ OK' : '✗ Error'}
+//                     </span>
+//                   </div>
+//                 </div>
+//               </div>
+//               <Settings className="w-8 h-8 text-green-600" />
+//             </div>
+//           </div>
+//         )}
+
+//         {/* Tab Navigation */}
+//         <div className="flex gap-2 mb-8 border-b border-gray-700">
+//           <button
+//             onClick={() => setSelectedTab('reup')}
+//             className={clsx(
+//               'px-6 py-3 font-semibold border-b-2 transition-colors',
+//               selectedTab === 'reup'
+//                 ? 'border-purple-600 text-purple-600'
+//                 : 'border-transparent text-gray-400 hover:text-gray-300'
+//             )}
+//           >
+//             📤 Reup Video
+//           </button>
+//           <button
+//             onClick={() => setSelectedTab('story')}
+//             className={clsx(
+//               'px-6 py-3 font-semibold border-b-2 transition-colors',
+//               selectedTab === 'story'
+//                 ? 'border-purple-600 text-purple-600'
+//                 :  'border-transparent text-gray-400 hover:text-gray-300'
+//             )}
+//           >
+//             📖 Tạo Video Câu Chuyện
+//           </button>
+//         </div>
+
+//         {/* Content */}
+//         <div className="p-8 border rounded-lg bg-white/5 backdrop-blur-sm border-white/10">
+//           {selectedTab === 'reup' && <ReupVideoFeature />}
+//           {selectedTab === 'story' && <StoryVideoFeature />}
+//         </div>
+
+//         {/* Footer */}
+//         <div className="mt-8 text-sm text-center text-gray-400">
+//           <p>Video Reup AI Factory v3.0.0 © 2024 - Powered by OpenAI, Google Gemini & FFmpeg</p>
+//         </div>
+//       </div>
+//     </main>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { api, type Job, type JobStatus, type Platform, type SystemStatus } from "@/lib/api";
-import { Tabs } from "@/components/Tabs";
-import { JobCreateForm } from "@/components/JobCreateForm";
-import { AnalyzeForm } from "@/components/AnalyzeForm";
-import { UploadForm } from "@/components/UploadForm";
-import { JobsTable } from "@/components/JobsTable";
+import { useEffect, useState } from "react";
+import { Video, Settings, AlertCircle, Loader } from "lucide-react";
+import toast from "react-hot-toast";
+import { apiClient } from "@/lib/api-client";
+import { ReupVideoFeature } from "@/components/features/ReupVideoFeature";
+import { StoryVideoFeature } from "@/components/features/StoryVideoFeature";
+import clsx from "clsx";
 
-type TabKey = "create" | "analyze" | "upload";
+type TabKey = "reup" | "story";
 
-export default function Page() {
-  const [tab, setTab] = useState<TabKey>("create");
+type HealthStatus = {
+  api?: boolean;
+  database?: boolean;
+  redis?: boolean;
+  storage?: boolean;
+  [k: string]: any;
+};
 
-  const [health, setHealth] = useState<SystemStatus | null>(null);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [page, setPage] = useState(1);
-  const [size] = useState(20);
-  const [pages, setPages] = useState(1);
-
-  const [status, setStatus] = useState<JobStatus | "">("");
-  const [platform, setPlatform] = useState<Platform | "">("");
-
-  const [loading, setLoading] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function refresh() {
-    setErr(null);
-    setLoading(true);
-    try {
-      const [h, list] = await Promise.all([
-        api.health().catch(() => null),
-        api.listJobs({ page, size, status, platform })
-      ]);
-      setHealth(h);
-      setJobs(list.items);
-      setPages(list.pages);
-    } catch (e: any) {
-      setErr(e?.message || "Load failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { refresh(); }, [page, status, platform]);
-
-  // Poll các job đang chạy
-  const hasRunning = useMemo(
-    () => jobs.some(j => j.status === "pending" || j.status === "downloading" || j.status === "analyzing" || j.status === "processing"),
-    [jobs]
-  );
+export default function HomePage() {
+  const [selectedTab, setSelectedTab] = useState<TabKey>("reup");
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
-    if (!hasRunning) return;
-    const t = setInterval(() => refresh(), 2000);
-    return () => clearInterval(t);
-  }, [hasRunning, page, status, platform]);
+    let mounted = true;
+
+    const checkHealth = async () => {
+      try {
+        setIsLoading(true);
+        const health = (await apiClient.getHealth()) as HealthStatus;
+
+        if (!mounted) return;
+
+        setHealthStatus(health);
+        setHasError(!Boolean(health?.api));
+      } catch (error) {
+        if (!mounted) return;
+        toast.error("Không thể kết nối đến backend");
+        setHasError(true);
+        setHealthStatus(null);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    checkHealth();
+    const interval = setInterval(checkHealth, 10000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Loader className="w-12 h-12 mx-auto mb-4 text-purple-600 animate-spin" />
+          <p className="text-lg font-semibold">Đang tải...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <main className="container">
-      <div className="row" style={{ alignItems: "flex-start", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>VideoMRP</div>
-          <div className="small">Backend: <span className="mono">{api.base}</span></div>
-          {health && (
-            <div className="small" style={{ marginTop: 6 }}>
-              Health: {health.api ? "OK" : "NO"} • DB: {health.database ? "OK" : "NO"} • Redis: {health.redis ? "OK" : "NO"} • Storage: {health.storage ? "OK" : "NO"}
-            </div>
-          )}
+    <main className="min-h-screen px-4 py-8 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      <div className="mx-auto max-w-7xl">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Video className="w-8 h-8 text-purple-600" />
+            <h1 className="text-4xl font-bold text-white">Video Reup AI Factory</h1>
+          </div>
+          <p className="text-lg text-gray-400">Công cụ tự động xử lý, chỉnh sửa và tái đăng video với AI</p>
         </div>
 
-        <div className="row">
-          <button className="btn secondary" onClick={() => refresh()} disabled={loading}>
-            {loading ? "Refreshing..." : "Refresh"}
+        {/* Health Status */}
+        {hasError && (
+          <div className="flex items-start gap-3 p-4 mb-6 border rounded-lg border-red-500/50 bg-red-500/10">
+            <AlertCircle className="mt-0.5 h-6 w-6 flex-shrink-0 text-red-500" />
+            <div>
+              <h3 className="mb-1 font-semibold text-red-600">Lỗi Kết Nối</h3>
+              <p className="text-sm text-red-600">
+                Không thể kết nối đến backend. Vui lòng kiểm tra xem server có đang chạy không.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {healthStatus && !hasError && (
+          <div className="p-4 mb-6 border rounded-lg border-green-500/50 bg-green-500/10">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="mb-2 font-semibold text-green-600">Hệ Thống Khỏe Mạnh</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
+                  <div>
+                    <span className="text-gray-400">API:</span>{" "}
+                    <span className={healthStatus.api ? "text-green-600" : "text-red-600"}>
+                      {healthStatus.api ? "✓ OK" : "✗ Error"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Database:</span>{" "}
+                    <span className={healthStatus.database ? "text-green-600" : "text-red-600"}>
+                      {healthStatus.database ? "✓ OK" : "✗ Error"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Redis:</span>{" "}
+                    <span className={healthStatus.redis ? "text-green-600" : "text-red-600"}>
+                      {healthStatus.redis ? "✓ OK" : "✗ Error"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Storage:</span>{" "}
+                    <span className={healthStatus.storage ? "text-green-600" : "text-red-600"}>
+                      {healthStatus.storage ? "✓ OK" : "✗ Error"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <Settings className="w-8 h-8 text-green-600" />
+            </div>
+          </div>
+        )}
+
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mb-8 border-b border-gray-700">
+          <button
+            onClick={() => setSelectedTab("reup")}
+            className={clsx(
+              "border-b-2 px-6 py-3 font-semibold transition-colors",
+              selectedTab === "reup"
+                ? "border-purple-600 text-purple-600"
+                : "border-transparent text-gray-400 hover:text-gray-300"
+            )}
+          >
+            📤 Reup Video
+          </button>
+
+          <button
+            onClick={() => setSelectedTab("story")}
+            className={clsx(
+              "border-b-2 px-6 py-3 font-semibold transition-colors",
+              selectedTab === "story"
+                ? "border-purple-600 text-purple-600"
+                : "border-transparent text-gray-400 hover:text-gray-300"
+            )}
+          >
+            📖 Tạo Video Câu Chuyện
           </button>
         </div>
-      </div>
 
-      <div style={{ marginTop: 12 }}>
-        <Tabs
-          value={tab}
-          onChange={setTab}
-          tabs={[
-            { key: "create", label: "Create job" },
-            { key: "analyze", label: "Analyze only" },
-            { key: "upload", label: "Upload" }
-          ]}
-        />
-      </div>
-
-      <div style={{ marginTop: 12 }}>
-        {tab === "create" && <JobCreateForm onCreated={() => { setPage(1); refresh(); }} />}
-        {tab === "analyze" && <AnalyzeForm />}
-        {tab === "upload" && <UploadForm onUploaded={() => { setPage(1); refresh(); }} />}
-      </div>
-
-      {err && (
-        <div className="card" style={{ marginTop: 12, borderColor: "#ffd0d0", background: "#fff0f0" }}>
-          <b>Error:</b> {err}
-        </div>
-      )}
-
-      <div style={{ marginTop: 16 }} className="row">
-        <div style={{ width: 220, minWidth: 200 }}>
-          <div className="label">Filter status</div>
-          <select className="select" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value as any); }}>
-            <option value="">all</option>
-            <option value="pending">pending</option>
-            <option value="downloading">downloading</option>
-            <option value="analyzing">analyzing</option>
-            <option value="processing">processing</option>
-            <option value="completed">completed</option>
-            <option value="failed">failed</option>
-            <option value="cancelled">cancelled</option>
-          </select>
+        {/* Content */}
+        <div className="p-8 border rounded-lg border-white/10 bg-white/5 backdrop-blur-sm">
+          {selectedTab === "reup" && <ReupVideoFeature />}
+          {selectedTab === "story" && <StoryVideoFeature />}
         </div>
 
-        <div style={{ width: 220, minWidth: 200 }}>
-          <div className="label">Filter platform</div>
-          <select className="select" value={platform} onChange={(e) => { setPage(1); setPlatform(e.target.value as any); }}>
-            <option value="">all</option>
-            <option value="tiktok">tiktok</option>
-            <option value="youtube">youtube</option>
-            <option value="facebook">facebook</option>
-            <option value="instagram">instagram</option>
-            <option value="douyin">douyin</option>
-            <option value="twitter">twitter</option>
-          </select>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "end", gap: 8 }}>
-          <button className="btn secondary" disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Prev</button>
-          <div className="small">Page {page}/{pages}</div>
-          <button className="btn secondary" disabled={page >= pages} onClick={() => setPage(p => Math.min(pages, p + 1))}>Next</button>
+        {/* Footer */}
+        <div className="mt-8 text-sm text-center text-gray-400">
+          <p>Video Reup AI Factory v3.0.0 © 2024 - Powered by OpenAI, Google Gemini & FFmpeg</p>
         </div>
       </div>
-
-      <div style={{ marginTop: 12 }}>
-        <JobsTable data={jobs} onRefresh={refresh} />
-      </div>
-
-      
     </main>
   );
 }

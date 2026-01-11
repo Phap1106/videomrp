@@ -1,19 +1,181 @@
-:root { color-scheme: light; }
-* { box-sizing: border-box; }
-body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; background: #fafafa; color: #111; }
-a { color: #111; }
-.container { max-width: 1100px; margin: 0 auto; padding: 20px; }
-.card { background: #fff; border: 1px solid #e6e6e6; border-radius: 14px; padding: 14px; }
-.row { display: flex; gap: 12px; flex-wrap: wrap; }
-.label { font-size: 12px; font-weight: 700; opacity: .75; margin-bottom: 6px; }
-.input, .select, .btn { padding: 10px 12px; border-radius: 10px; border: 1px solid #d9d9d9; background: #fff; }
-.input, .select { width: 100%; }
-.btn { cursor: pointer; border-color: #111; background: #111; color: #fff; }
-.btn.secondary { background: #fff; color: #111; border-color: #d9d9d9; }
-.btn:disabled { opacity: .7; cursor: not-allowed; }
-.hr { height: 1px; background: #eee; margin: 12px 0; }
-.table { width: 100%; border-collapse: collapse; }
-.table th, .table td { border-bottom: 1px solid #eee; padding: 10px 8px; text-align: left; vertical-align: top; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"; font-size: 12px; }
-.small { font-size: 12px; opacity: .8; }
-.badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; border: 1px solid #ddd; font-size: 12px; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    color-scheme: dark; /* giúp native form control theo dark */
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+      "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #111827;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #6366f1;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #818cf8;
+  }
+}
+
+@layer utilities {
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+}
+
+@layer base {
+  /* ===== Form controls: unify look on dark UI ===== */
+  input[type="text"],
+  input[type="email"],
+  input[type="url"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  textarea,
+  select {
+    width: 100%;
+    background-color: rgba(17, 24, 39, 0.65); /* gray-900/65 */
+    color: #e5e7eb; /* gray-200 */
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 10px;
+    padding: 10px 12px;
+    line-height: 1.4;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  }
+
+  textarea {
+    min-height: 100px;
+    resize: vertical;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgba(229, 231, 235, 0.45);
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: rgba(167, 139, 250, 0.9);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25);
+    background-color: rgba(17, 24, 39, 0.85);
+  }
+
+  /* ===== Fix native select dropdown look ===== */
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding-right: 40px; /* chừa chỗ cho icon */
+    background-image:
+      linear-gradient(45deg, transparent 50%, rgba(229, 231, 235, 0.75) 50%),
+      linear-gradient(135deg, rgba(229, 231, 235, 0.75) 50%, transparent 50%),
+      linear-gradient(to right, transparent, transparent);
+    background-position:
+      calc(100% - 18px) calc(50% - 3px),
+      calc(100% - 12px) calc(50% - 3px),
+      0 0;
+    background-size: 6px 6px, 6px 6px, 100% 100%;
+    background-repeat: no-repeat;
+  }
+
+  /* Option list nền tối (hỗ trợ trên nhiều trình duyệt, nhưng không phải 100%) */
+  option {
+    background-color: #111827;
+    color: #e5e7eb;
+  }
+
+  /* ===== Button ===== */
+  button {
+    transition: transform 0.05s ease, opacity 0.2s ease;
+  }
+  button:active {
+    transform: translateY(1px);
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* ===== Checkbox / radio ===== */
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: #8b5cf6;
+  }
+
+  /* ===== Range ===== */
+  input[type="range"] {
+    width: 100%;
+    height: 8px;
+    background: #374151;
+    border-radius: 999px;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    accent-color: #8b5cf6;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #8b5cf6;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #8b5cf6;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+  }
+
+  /* Video preview */
+  video {
+    width: 100%;
+    height: auto;
+  }
+}
+/* optional: fix popover/select overlay */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}

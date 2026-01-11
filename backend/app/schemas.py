@@ -1,267 +1,182 @@
-import enum
+"""
+Pydantic schemas for API requests and responses
+"""
+
+from typing import Optional, Any, List
+from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Any
-
-from pydantic import BaseModel, Field, validator
 
 
-class Platform(str, enum.Enum):
-    TIKTOK = "tiktok"
-    YOUTUBE = "youtube"
-    FACEBOOK = "facebook"
-    INSTAGRAM = "instagram"
-    DOUYIN = "douyin"
-    TWITTER = "twitter"
-    GENERIC = "generic"
-
-
-class VideoType(str, enum.Enum):
-    SHORT = "short"
-    HIGHLIGHT = "highlight"
-    VIRAL = "viral"
-    MEME = "meme"
-    FULL = "full"
-    REEL = "reel"
-
-
-class JobStatus(str, enum.Enum):
-    PENDING = "pending"
-    DOWNLOADING = "downloading"
-    ANALYZING = "analyzing"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-# Request schemas
-class ProcessingFlow(str, enum.Enum):
-    AUTO = "auto"
-    FAST = "fast"  # rule-based, minimal processing
-    AI = "ai"  # Deepgram + AI-generated instructions
-    FULL = "full"  # separation + OCR + AI + optional reup
-    CUSTOM = "custom"
-
+# ==================== REQUEST SCHEMAS ====================
 
 class VideoCreateRequest(BaseModel):
-    """Request schema for creating a video job"""
+    """Request to create and process video"""
+    source_url: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    target_platform: str = "tiktok"
+    video_type: str = "short"
+    duration: int = 60
+    
+    # Processing options
+    add_subtitles: bool = True
+    add_ai_narration: bool = True
+    add_text_overlay: bool = False
+    remove_watermark: bool = True
+    
+    # AI options
+    ai_provider: Optional[str] = "auto"
+    tts_voice: Optional[str] = None
+    narration_style: Optional[str] = "professional"  # professional, casual, dramatic
+    
+    # Processing flow
+    processing_flow: str = "auto"  # auto, fast, ai, full, custom
+    processing_options: Optional[dict] = None
 
-    source_url: str = Field(..., description="Source video URL")
-    title: str | None = Field(None, description="Video title")
-    description: str | None = Field(None, description="Video description")
 
-    target_platform: Platform = Field(default=Platform.TIKTOK, description="Target platform")
-    video_type: VideoType = Field(default=VideoType.SHORT, description="Video type")
+class StoryVideoRequest(BaseModel):
+    """Request to create story-based video"""
+    source_url: str
+    title: str
+    story_topic: str  # Topic for story generation
+    duration: int = 60
+    
+    # Text styling
+    font_size: int = 60
+    font_color: str = "FFFFFF"
+    text_position: str = "bottom"
+    
+    # AI options
+    story_style: str = "narrative"  # narrative, dramatic, humorous, educational
+    ai_provider: Optional[str] = "auto"
+    tts_voice: Optional[str] = None
 
-    duration: int = Field(default=60, ge=5, le=600, description="Duration in seconds")
-    add_subtitles: bool = Field(default=True, description="Add subtitles")
-    change_music: bool = Field(default=True, description="Change background music")
-    remove_watermark: bool = Field(default=True, description="Remove watermarks")
-    add_effects: bool = Field(default=True, description="Add effects")
-    meme_template: str | None = Field(None, description="Meme template name")
 
-    # New: processing flow and arbitrary processing options
-    processing_flow: ProcessingFlow = Field(
-        default=ProcessingFlow.AUTO, description="Processing flow/preset to use"
-    )
-    processing_options: dict[str, Any] | None = Field(
-        default=None,
-        description="Custom processing options (e.g., separate_audio, diarization, ocr, auto_reup)",
-    )
-
-    @validator("source_url")
-    def validate_url(cls, v):
-        if not v.startswith(("http://", "https://")):
-            raise ValueError("URL must start with http:// or https://")
-        return v
+class TextOverlayRequest(BaseModel):
+    """Request to add text overlay to video"""
+    job_id: str
+    text_segments: List[dict]  # [{"start": 0, "end": 5, "text": "Hello", "style": {...}}]
+    font_size: int = 60
+    font_color: str = "FFFFFF"
+    text_position: str = "bottom"
+    apply_and_output: bool = True
 
 
 class VideoAnalyzeRequest(BaseModel):
-    """Request schema for analyzing a video"""
-
-    source_url: str = Field(..., description="Source video URL")
-    target_platform: Platform = Field(default=Platform.TIKTOK, description="Target platform")
-    analyze_content: bool = Field(default=True, description="Analyze video content")
-    detect_scenes: bool = Field(default=True, description="Detect scenes")
-    check_copyright: bool = Field(default=True, description="Check for copyright issues")
-
-
-class VideoEditRequest(BaseModel):
-    """Request schema for editing a video"""
-
-    job_id: str = Field(..., description="Job ID")
-    instructions: dict[str, Any] = Field(..., description="Editing instructions")
+    """Request to analyze video"""
+    source_url: str
+    target_platform: str = "tiktok"
+    analyze_content: bool = True
+    detect_scenes: bool = True
+    check_copyright: bool = True
 
 
-class BatchCreateRequest(BaseModel):
-    """Request schema for batch creation"""
+class TTSRequest(BaseModel):
+    """Request to generate text-to-speech"""
+    text: str
+    voice: Optional[str] = None
+    speed:  float = 1.0
+    pitch: float = 0.0
+    ai_provider: Optional[str] = "auto"
 
-    videos: list[VideoCreateRequest] = Field(..., description="List of videos to process")
-    parallel: bool = Field(default=False, description="Process in parallel")
+
+class VoicePreviewRequest(BaseModel):
+    """Request to preview AI voice"""
+    voice_id: str
+    sample_text: str = "Hello, this is a voice preview."
+    ai_provider: Optional[str] = "auto"
 
 
-# Response schemas
-class JobResponse(BaseModel):
-    """Response schema for job"""
+# ==================== RESPONSE SCHEMAS ====================
 
+class JobStatus(BaseModel):
+    """Job status response"""
     id: str
     title: str
-    status: str
+    status: str  # pending, downloading, analyzing, processing, completed, failed
     progress: float
     current_step: str
-    source_platform: str
-    target_platform: str
-    video_type: str
-    duration: int
-    processing_flow: str | None
-    processing_options: dict | None
-    created_at: str
-    updated_at: str | None
-    completed_at: str | None
-    output_filename: str | None
-    error_message: str | None
-
-    class Config:
-        from_attributes = True
+    created_at: datetime
+    updated_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    output_path: Optional[str]
+    error_message: Optional[str]
 
 
-class AnalysisResult(BaseModel):
-    """Response schema for analysis result"""
-
-    job_id: str
-    summary: str
-    category: str
-    mood: str
-    duration: float
-    key_moments: list[dict[str, Any]]
-    scenes: list[dict[str, Any]]
-    copyright_risks: list[dict[str, Any]]
-    suggestions: dict[str, Any]
-    hashtags: list[str]
-    titles: list[str]
-    viral_score: float
-    processing_time: float
-
-
-class VideoSegmentResponse(BaseModel):
-    """Response schema for video segment"""
-
-    id: int
-    start_time: float
-    end_time: float
-    duration: float
-    text: str | None
-    has_text: bool
-    has_face: bool
-    scene_type: str | None
-    importance: float
-    description: str | None
-
-
-class PlatformSettings(BaseModel):
-    """Response schema for platform settings"""
-
-    platform: Platform
+class VoiceOption(BaseModel):
+    """Available voice option"""
+    id: str
     name: str
-    max_duration: int
-    aspect_ratios: list[str]
-    watermark_allowed: bool
-    copyright_strictness: str
-    recommended_formats: list[str]
-    max_size_mb: int
-    audio_requirements: dict[str, Any]
+    gender: str
+    language: str
+    preview_url: Optional[str] = None
 
 
-class SystemStatus(BaseModel):
-    """Response schema for system status"""
+class ProcessingFlowOption(BaseModel):
+    """Processing flow option"""
+    key: str
+    label: str
+    description: str
+    duration_estimate: int  # seconds
+    cost_estimate: Optional[str]
+    options: dict
 
-    api: bool
+
+class HealthResponse(BaseModel):
+    """Health check response"""
+    api:  bool
     database: bool
     redis: bool
     storage: bool
-    ai_services: dict[str, bool]
+    ai_services: dict
     queue_size: int
     active_jobs: int
-    total_jobs: int
-    uptime: float
-    version: str
-    timestamp: datetime
+    uptime:  float
 
 
-class PaginatedResponse(BaseModel):
-    """Response schema for paginated results"""
-
-    items: list[Any]
-    total: int
-    page: int
-    size: int
-    pages: int
-
-
-class ErrorResponse(BaseModel):
-    """Response schema for errors"""
-
-    detail: str
-    code: str | None = None
-    field: str | None = None
+class AnalysisResult(BaseModel):
+    """Video analysis result"""
+    content_summary: str
+    scene_breakdown: List[dict]
+    copyright_risk: str  # low, medium, high
+    recommended_edits: List[str]
+    optimal_platforms: List[str]
+    best_cuts: List[dict]  # timing for cuts
 
 
-class SuccessResponse(BaseModel):
-    """Response schema for success"""
-
+class VideoOutputResponse(BaseModel):
+    """Video processing output"""
     success: bool
-    message: str
-    data: Any | None = None
+    job_id: str
+    output_path: Optional[str] = None
+    output_url: Optional[str] = None
+    duration: Optional[float] = None
+    thumbnail_url: Optional[str] = None
+    error: Optional[str] = None
+    processing_time: Optional[float] = None
 
 
-# User schemas
-class UserCreate(BaseModel):
-    """Request schema for user creation"""
-
-    email: str = Field(..., description="User email")
-    username: str = Field(..., description="Username")
-    password: str = Field(..., min_length=8, description="Password")
-    full_name: str | None = Field(None, description="Full name")
+class TranscriptSegment(BaseModel):
+    """Transcript segment with timing"""
+    start: float
+    end: float
+    text:  str
+    confidence: Optional[float] = None
 
 
-class UserLogin(BaseModel):
-    """Request schema for user login"""
-
-    email: str = Field(..., description="Email")
-    password: str = Field(..., description="Password")
-
-
-class UserResponse(BaseModel):
-    """Response schema for user"""
-
-    id: str
-    email: str
-    username: str
-    full_name: str | None
-    is_active: bool
-    is_verified: bool
-    subscription_tier: str
-    credits_remaining: int
-    created_at: str
-
-    class Config:
-        from_attributes = True
+class TranscriptionResult(BaseModel):
+    """Transcription result"""
+    full_text: str
+    language: str
+    duration: float
+    segments: List[TranscriptSegment]
+    confidence: Optional[float] = None
 
 
-class TokenResponse(BaseModel):
-    """Response schema for token"""
-
-    access_token: str
-    token_type: str
-    expires_in: int
-    user: UserResponse
-
-
-# WebSocket schemas
-class WebSocketMessage(BaseModel):
-    """WebSocket message schema"""
-
-    type: str
-    data: dict[str, Any]
-    job_id: str | None = None
-    timestamp: float = Field(default_factory=lambda: datetime.now().timestamp())
+class StoryGenerationResult(BaseModel):
+    """Story generation result"""
+    original_text: Optional[str]
+    generated_story: str
+    segments: List[dict]
+    style: str
+    estimated_duration: Optional[int]

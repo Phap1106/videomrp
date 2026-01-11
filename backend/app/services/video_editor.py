@@ -1,320 +1,255 @@
-import shutil
-import tempfile
+"""
+Main Video Editor Service - Orchestrates all video processing
+"""
+
 from pathlib import Path
-from typing import Any
-
+from typing import Optional, Any, Tuple
 from app.core.logger import logger
-
-from app.utils.ffmpeg_ops import FFmpegOperations
+from app.core.config import settings
+from app.utils.ffmpeg_ops import ffmpeg_ops, FFmpegError
+from app. services.audio_processor import audio_processor
+from app.services. text_overlay_engine import text_overlay_engine, TextStyle
 
 
 class VideoEditor:
-    """Edit videos based on AI instructions"""
+    """Main video editor service"""
 
-    def __init__(self):
-        self.ffmpeg = FFmpegOperations()
-        self.ffmpeg_available = getattr(self.ffmpeg, "available", False)
-
-    async def edit_video(
+    async def process_video_for_reup(
         self,
-        input_path: str,
-        instructions: dict[str, Any],
-        output_path: str,
-        platform: str,
+        video_path: Path,
+        target_duration: int = 60,
+        target_platform: str = "tiktok",
+        add_text:  bool = True,
+        text_segments: Optional[list[dict]] = None,
+        new_audio_path: Optional[Path] = None,
+        output_path: Optional[Path] = None,
     ) -> dict[str, Any]:
-        """Edit video based on AI instructions"""
-        logger.info(f"Editing video: {input_path} for {platform}")
+        """
+        Process video for reupload with AI narration and text
 
-        # If ffmpeg is missing, fallback by copying input to output (best-effort salvage)
-        if not self.ffmpeg_available:
-            try:
-                Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(input_path, output_path)
+        Args:
+            video_path: Source video path
+            target_duration:   Target duration in seconds
+            target_platform: Target platform (tiktok, youtube, etc.)
+            add_text: Whether to add text overlay
+            text_segments: Text segments with timing
+            new_audio_path:   New AI narration audio path
+            output_path: Output video path
 
-                logger.warning(
-                    "FFmpeg not available - skipped editing and copied input to output to avoid failing job"
-                )
-
-                result = {
-                    "output_path": output_path,
-                    "thumbnail_path": None,
-                    "duration": await self._get_duration(output_path),
-                    "resolution": await self._get_resolution(output_path),
-                    "file_size": Path(output_path).stat().st_size
-                    if Path(output_path).exists()
-                    else 0,
-                    "clips_used": 0,
-                    "skipped_editing": True,
-                }
-
-                return result
-            except Exception as e:
-                logger.error(f"Fallback copy failed: {e}")
-                raise Exception(f"Video editing failed: {str(e)}")
-
+        Returns:
+            Processing result with metadata
+        """
         try:
-            # Create temporary directory for processing
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
+            logger.info(f"Processing video for {target_platform} reup")
+            output_path = output_path or Path(settings.PROCESSED_DIR) / f"reup_{video_path.stem}. mp4"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
-                # Step 1: Extract clips based on instructions
-                clips = await self._extract_clips(input_path, instructions, temp_path)
+            # Get video info
+            video_info = await ffmpeg_ops.get_video_info(video_path)
+            logger.info(f"Video info: {video_info}")
 
-                # Step 2: Apply effects to clips
-                processed_clips = await self._process_clips(clips, instructions, temp_path)
+            # Resize if needed based on platform
+            resized_video = await self._resize_for_platform(video_path, target_platform)
 
-                # Step 3: Concatenate clips
-                final_video = await self._concatenate_clips(
-                    processed_clips, instructions, temp_path
+            # Replace audio if provided
+            if new_audio_path:
+                logger.info("Replacing audio with AI narration")
+                video_with_audio = await ffmpeg_ops.replace_audio(
+                    resized_video,
+                    new_audio_path,
+                    Path(settings.TEMP_DIR) / f"with_audio_{video_path.stem}.mp4",
                 )
+            else:
+                video_with_audio = resized_video
 
-                # Step 4: Apply final processing
-                await self._apply_final_processing(final_video, output_path, instructions, platform)
+            # Add text overlay if provided
+            if add_text and text_segments:
+                logger. info(f"Adding {len(text_segments)} text segments")
+                final_video = await text_overlay_engine.add_styled_text(
+                    video_with_audio,
+                    text_segments,
+                    output_path,
+                )
+            else:
+                final_video = video_with_audio
+                if final_video != output_path:
+                    import shutil
+                    shutil. copy(str(final_video), str(output_path))
 
-                # Step 5: Generate thumbnail
-                thumbnail_path = await self._generate_thumbnail(output_path, temp_path)
+            # Generate thumbnail
+            thumbnail_path = await ffmpeg_ops.generate_thumbnail(
+                output_path,
+                timestamp=0,
+                output_path=Path(settings. PROCESSED_DIR) / f"{output_path.stem}_thumb.jpg",
+            )
 
-                result = {
-                    "output_path": output_path,
-                    "thumbnail_path": thumbnail_path,
-                    "duration": await self._get_duration(output_path),
-                    "resolution": await self._get_resolution(output_path),
-                    "file_size": Path(output_path).stat().st_size,
-                    "clips_used": len(clips),
-                }
-
-                logger.info(f"Video editing completed: {output_path}")
-                return result
+            return {
+                "success": True,
+                "output_path": str(output_path),
+                "thumbnail_path": str(thumbnail_path),
+                "duration": video_info["duration"],
+                "platform": target_platform,
+            }
 
         except Exception as e:
-            if "FFmpeg" in str(e) or "ffmpeg" in str(e).lower() or "not available" in str(e):
-                logger.warning(f"FFmpeg related error ({e}); attempting fallback copy")
-                try:
-                    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(input_path, output_path)
-                    return {
-                        "output_path": output_path,
-                        "thumbnail_path": None,
-                        "duration": await self._get_duration(output_path),
-                        "resolution": await self._get_resolution(output_path),
-                        "file_size": Path(output_path).stat().st_size
-                        if Path(output_path).exists()
-                        else 0,
-                        "clips_used": 0,
-                        "skipped_editing": True,
-                    }
-                except Exception as e2:
-                    logger.error(f"Fallback copy also failed: {e2}")
-                    raise Exception(f"Video editing failed: {str(e2)}")
+            logger.error(f"Video processing error: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
 
-            logger.error(f"Video editing failed: {e}")
-            raise Exception(f"Video editing failed: {str(e)}")
+    async def cut_and_merge_video(
+        self,
+        video_path: Path,
+        cut_points: list[Tuple[float, float]],
+        output_path: Optional[Path] = None,
+    ) -> Path:
+        """
+        Cut video at specified points and merge back
 
-    async def _extract_clips(
-        self, input_path: str, instructions: dict[str, Any], temp_dir: Path
-    ) -> list[dict[str, Any]]:
-        """Extract clips from original video"""
-        clips = []
+        Args:
+            video_path: Source video path
+            cut_points: List of (start, end) tuples in seconds
+            output_path: Output video path
 
-        for i, clip_info in enumerate(instructions.get("clips", [])):
-            start_time = clip_info.get("start_time", 0)
-            end_time = clip_info.get("end_time", 0)
-            action = clip_info.get("action", "keep")
+        Returns:
+            Output video path
+        """
+        try:
+            output_path = output_path or Path(settings.PROCESSED_DIR) / f"cut_{video_path.stem}.mp4"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            if action == "cut":
-                continue  # Skip this clip
+            logger.info(f"Cutting and merging video at {len(cut_points)} points")
 
-            clip_path = temp_dir / f"clip_{i:03d}.mp4"
+            # Cut segments
+            cut_videos = []
+            for i, (start, end) in enumerate(cut_points):
+                cut_path = Path(settings.TEMP_DIR) / f"cut_{i}_{video_path.stem}. mp4"
+                cut_video = await ffmpeg_ops.cut_video(video_path, start, end, cut_path)
+                cut_videos.append(cut_video)
 
-            # Extract clip
-            await self.ffmpeg.extract_clip(
-                input_path=input_path,
-                output_path=str(clip_path),
-                start_time=start_time,
-                end_time=end_time,
-            )
+            # Merge segments
+            if len(cut_videos) == 1:
+                import shutil
+                shutil.copy(str(cut_videos[0]), str(output_path))
+            else:
+                await ffmpeg_ops.concatenate_videos(cut_videos, output_path)
 
-            clips.append(
-                {
-                    "path": str(clip_path),
-                    "index": i,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "duration": end_time - start_time,
-                    "action": action,
-                    "info": clip_info,
-                }
-            )
+            # Cleanup temp files
+            for cv in cut_videos:
+                cv.unlink(missing_ok=True)
 
-        return clips
+            logger.info(f"Cut and merge completed:   {output_path}")
+            return output_path
 
-    async def _process_clips(
-        self, clips: list[dict[str, Any]], instructions: dict[str, Any], temp_dir: Path
-    ) -> list[dict[str, Any]]:
-        """Process individual clips with effects"""
-        processed_clips = []
+        except Exception as e:
+            logger.error(f"Cut and merge error:  {e}")
+            raise
 
-        for clip in clips:
-            clip_info = clip["info"]
-            input_path = clip["path"]
-            output_path = temp_dir / f"processed_{clip['index']:03d}.mp4"
+    async def _resize_for_platform(self, video_path: Path, platform: str) -> Path:
+        """Resize video for specific platform"""
+        # Platform aspect ratios
+        platform_sizes = {
+            "tiktok": (1080, 1920),      # 9:16
+            "youtube": (1920, 1080),      # 16:9
+            "instagram":  (1080, 1080),    # 1:1
+            "facebook": (1200, 630),      # Landscape
+            "douyin": (1080, 1920),       # 9:16
+            "twitter": (1200, 675),       # 16:9
+        }
 
-            # Build FFmpeg filter chain
-            filter_chain = []
+        target_size = platform_sizes.get(platform, (1920, 1080))
 
-            # Apply speed change
-            if clip_info.get("speed_factor", 1.0) != 1.0:
-                speed = clip_info["speed_factor"]
-                filter_chain.append(f"setpts={1 / speed}*PTS")
-                # Note: Need separate audio filter for speed
+        # Check if resize needed
+        video_info = await ffmpeg_ops.get_video_info(video_path)
+        if video_info["width"] == target_size[0] and video_info["height"] == target_size[1]:
+            return video_path
 
-            # Apply text overlay
-            # Subtitle text may come from clip_info or global instructions
-            subtitle_text = clip_info.get("subtitle_text") or instructions.get("subtitle_text")
-            if clip_info.get("text_overlay"):
-                text_info = clip_info.get("text_overlay")
-                subtitle_text = text_info.get("text", subtitle_text)
+        logger.info(f"Resizing video to {target_size} for {platform}")
+        resized_path = Path(settings.TEMP_DIR) / f"resized_{video_path.stem}.mp4"
 
-            if subtitle_text:
-                text = subtitle_text.replace("'", "''")[:800]
-                pos = "x=(w-text_w)/2:y=h-text_h-50"
-                filter_chain.append(
-                    f"drawtext=text='{text}':fontsize=36:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=5:{pos}"
-                )
-
-            # Apply watermark removal (best-effort): draw box over common watermark area
-            if "watermark_removal" in clip_info.get("effects", []) or instructions.get(
-                "platform_specific_settings", {}
-            ).get("watermark_removal"):
-                # Draw a semi-opaque box in top-right corner (best-effort)
-                filter_chain.append("drawbox=x=main_w-220:y=10:w=200:h=60:color=black@0.6:t=fill")
-
-            # Apply zoom effect
-            if "zoom_in" in clip_info.get("effects", []):
-                filter_chain.append("zoompan=z='min(zoom+0.0015,1.5)':d=1")
-
-            # Apply color filter
-            if "color_filter" in clip_info.get("effects", []):
-                filter_chain.append(
-                    "colorchannelmixer=.393:.769:.189:0:.349:.686:.168:0:.272:.534:.131"
-                )
-
-            # Determine audio filters if we need to mute/change music
-            audio_filters = None
-            if clip_info.get("mute_audio"):
-                audio_filters = "volume=0.0"
-
-            # Process clip with filters
-            if filter_chain or audio_filters:
-                logger.info(
-                    f"Applying filters: {','.join(filter_chain) if filter_chain else '<none>'} audio_filters: {audio_filters}"
-                )
-                await self.ffmpeg.apply_filters(
-                    input_path=input_path,
-                    output_path=str(output_path),
-                    filters=",".join(filter_chain) if filter_chain else None,
-                    audio_filters=audio_filters,
-                )
-                clip["path"] = str(output_path)
-
-            processed_clips.append(clip)
-
-        return processed_clips
-
-    async def _concatenate_clips(
-        self, clips: list[dict[str, Any]], instructions: dict[str, Any], temp_dir: Path
-    ) -> str:
-        """Concatenate processed clips"""
-        if len(clips) == 1:
-            return clips[0]["path"]
-
-        # Create concat file
-        concat_file = temp_dir / "concat.txt"
-        with open(concat_file, "w") as f:
-            for clip in clips:
-                f.write(f"file '{clip['path']}'\n")
-
-        output_path = temp_dir / "concatenated.mp4"
-
-        await self.ffmpeg.concatenate_videos(
-            concat_file=str(concat_file), output_path=str(output_path)
+        return await ffmpeg_ops.resize_video(
+            video_path,
+            target_size[0],
+            target_size[1],
+            resized_path,
         )
 
-        return str(output_path)
-
-    async def _apply_final_processing(
+    async def generate_story_video(
         self,
-        input_path: str,
-        output_path: str,
-        instructions: dict[str, Any],
-        platform: str,
-    ):
-        """Apply final processing to video"""
-        # Get platform-specific settings
-        platform_settings = instructions.get("platform_specific_settings", {})
-        aspect_ratio = platform_settings.get("aspect_ratio", "9:16")
-        target_resolution = platform_settings.get("target_resolution", "1080x1920")
+        base_video_path: Path,
+        story_text: str,
+        audio_path: Path,
+        output_path: Optional[Path] = None,
+    ) -> Path:
+        """
+        Generate story-based video with narration
+        """
+        try:
+            output_path = output_path or Path(settings.PROCESSED_DIR) / f"story_{base_video_path.stem}. mp4"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Build processing chain
-        filters = []
+            logger.info("Generating story video")
 
-        # Scale to target resolution
-        if aspect_ratio == "9:16":
-            filters.append(f"scale={target_resolution}")
-        elif aspect_ratio == "16:9":
-            filters.append(f"scale={target_resolution}")
+            # Split story into subtitle segments
+            segments = self._create_subtitle_segments(story_text)
 
-        # Add watermark removal if needed
-        if platform_settings.get("watermark_removal", False):
-            # This would require more sophisticated watermark detection
-            pass
+            # Create subtitle file
+            subtitle_path = await text_overlay_engine.generate_subtitle_file(
+                segments,
+                Path(settings.TEMP_DIR) / f"subtitles_{base_video_path.stem}.srt",
+                format="srt",
+            )
 
-        # Normalize audio
-        if platform_settings.get("audio_normalization", False):
-            filters.append("loudnorm=I=-16:LRA=11:TP=-1.5")
-
-        # Apply filters if any
-        if filters:
-            await self.ffmpeg.apply_filters(
-                input_path=input_path,
+            # Process video with audio and text
+            result = await self.process_video_for_reup(
+                base_video_path,
+                add_text=True,
+                text_segments=segments,
+                new_audio_path=audio_path,
                 output_path=output_path,
-                filters=",".join(filters),
-            )
-        else:
-            # Just copy if no filters
-            shutil.copy2(input_path, output_path)
-
-    async def _generate_thumbnail(self, video_path: str, temp_dir: Path) -> str | None:
-        """Generate thumbnail from video"""
-        try:
-            thumbnail_path = temp_dir / "thumbnail.jpg"
-
-            # Extract frame at 25% of video
-            await self.ffmpeg.extract_frame(
-                input_path=video_path,
-                output_path=str(thumbnail_path),
-                time_offset="25%",
             )
 
-            return str(thumbnail_path)
+            return output_path if result["success"] else None
+
         except Exception as e:
-            logger.warning(f"Thumbnail generation failed: {e}")
-            return None
+            logger.error(f"Story video generation error: {e}")
+            raise
 
-    async def _get_duration(self, video_path: str) -> float:
-        """Get video duration"""
-        try:
-            result = await self.ffmpeg.get_video_info(video_path)
-            return float(result.get("duration", 0))
-        except:
-            return 0
+    def _create_subtitle_segments(self, text: str, words_per_second: float = 2.5) -> list[dict]:
+        """Create subtitle segments from text"""
+        words = text.split()
+        duration_per_word = 1.0 / words_per_second
 
-    async def _get_resolution(self, video_path: str) -> str:
-        """Get video resolution"""
-        try:
-            result = await self.ffmpeg.get_video_info(video_path)
-            width = result.get("width", 0)
-            height = result.get("height", 0)
-            return f"{width}x{height}"
-        except:
-            return "0x0"
+        segments = []
+        current_time = 0
+        i = 0
+
+        # Group words into logical segments (e.g., sentences or phrases)
+        while i < len(words):
+            # Find sentence end
+            j = min(i + 5, len(words))  # ~5 words per segment
+            segment_text = " ".join(words[i:j])
+
+            start = current_time
+            end = current_time + (j - i) * duration_per_word
+
+            segments.append({
+                "start": start,
+                "end": end,
+                "text":  segment_text,
+                "style": {
+                    "font_size": 60,
+                    "font_color": "FFFFFF",
+                    "bg_color": "000000",
+                    "position": "bottom",
+                },
+            })
+
+            current_time = end
+            i = j
+
+        return segments
+
+
+video_editor = VideoEditor()
