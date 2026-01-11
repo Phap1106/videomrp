@@ -45,14 +45,14 @@ async def health_check() -> HealthResponse:
     """Check system health"""
     try:
         from redis import Redis
-        redis_client = Redis. from_url(settings.REDIS_URL)
+        redis_client = Redis.from_url(settings.REDIS_URL)
         redis_ok = bool(redis_client.ping())
     except:
         redis_ok = False
 
     try:
         db = SessionLocal()
-        db. execute("SELECT 1")
+        db.execute("SELECT 1")
         db_ok = True
         db.close()
     except:
@@ -66,7 +66,7 @@ async def health_check() -> HealthResponse:
 
     # Check AI services
     ai_services = {}
-    if settings. OPENAI_API_KEY:
+    if settings.OPENAI_API_KEY:
         ai_services["openai"] = True
     if settings.GOOGLE_API_KEY:
         ai_services["google"] = True
@@ -94,7 +94,7 @@ async def get_available_voices(ai_provider: Optional[str] = None) -> list[VoiceO
         return [
             VoiceOption(
                 id=v.get("id", ""),
-                name=v. get("name", ""),
+                name=v.get("name", ""),
                 gender=v.get("gender", ""),
                 language=v.get("language", ""),
             )
@@ -164,11 +164,11 @@ async def generate_tts(request: TTSRequest):
         tts = await get_tts_provider(provider)
 
         output_path = await tts.synthesize(
-            text=request. text,
-            voice=request. voice,
+            text=request.text,
+            voice=request.voice,
             speed=request.speed,
             pitch=request.pitch,
-            output_path=Path(settings. TEMP_DIR) / f"tts_{uuid.uuid4()}.mp3",
+            output_path=Path(settings.TEMP_DIR) / f"tts_{uuid.uuid4()}.mp3",
         )
 
         return {
@@ -200,7 +200,7 @@ async def preview_voice(request: VoicePreviewRequest):
             filename=f"preview_{request.voice_id}.mp3",
         )
     except Exception as e:
-        logger. error(f"Voice preview error: {e}")
+        logger.error(f"Voice preview error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -245,7 +245,7 @@ async def transcribe_video(
 
 # ==================== STORY GENERATION ENDPOINTS ====================
 
-@router. post("/story/generate")
+@router.post("/story/generate")
 async def generate_story(
     prompt: str = Query(...),
     max_length: int = Query(default=1000),
@@ -332,14 +332,14 @@ async def generate_narration(
 
 # ==================== VIDEO PROCESSING ENDPOINTS ====================
 
-@router. post("/videos/process-reup")
+@router.post("/videos/process-reup")
 async def process_reup_video(
     request: VideoCreateRequest,
     background_tasks: BackgroundTasks,
 ):
     """Process video for reupload with AI"""
     try:
-        logger. info(f"Processing reup video: {request.source_url}")
+        logger.info(f"Processing reup video: {request.source_url}")
 
         job_id = str(uuid.uuid4())
 
@@ -392,8 +392,8 @@ async def process_story_video(
         db = SessionLocal()
         job = VideoJob(
             id=job_id,
-            title=request. title,
-            source_url=request. source_url,
+            title=request.title,
+            source_url=request.source_url,
             duration=request.duration,
             status=JobStatus.PENDING,
         )
@@ -402,7 +402,7 @@ async def process_story_video(
         db.close()
 
         # Queue processing
-        background_tasks. add_task(
+        background_tasks.add_task(
             _process_story_video_task,
             job_id,
             request,
@@ -428,12 +428,12 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)):
 
         output_links = []
         if job.output_path:
-            output_links. append(f"/api/videos/download/{job_id}")
+            output_links.append(f"/api/videos/download/{job_id}")
 
         return {
             "id": job.id,
             "title": job.title,
-            "status": job.status. value if hasattr(job.status, 'value') else str(job.status),
+            "status": job.status.value if hasattr(job.status, 'value') else str(job.status),
             "progress": job.progress,
             "current_step": job.current_step,
             "created_at": job.created_at,
@@ -460,7 +460,7 @@ async def download_video(job_id: str, db: Session = Depends(get_db)):
         return FileResponse(
             path=output_path,
             media_type="video/mp4",
-            filename=job.output_filename or "video. mp4",
+            filename=job.output_filename or "video.mp4",
         )
     except Exception as e:
         logger.error(f"Download error: {e}")
@@ -505,11 +505,11 @@ async def _process_reup_video_task(job_id: str, request: VideoCreateRequest):
             )
 
             # Generate TTS
-            tts = await get_tts_provider(request. ai_provider or settings.TTS_PROVIDER)
+            tts = await get_tts_provider(request.ai_provider or settings.TTS_PROVIDER)
             new_audio = await tts.synthesize(
                 text=narration,
                 voice=request.tts_voice,
-                output_path=Path(settings. TEMP_DIR) / f"narration_{job_id}.mp3",
+                output_path=Path(settings.TEMP_DIR) / f"narration_{job_id}.mp3",
             )
 
             # Create text segments
@@ -526,7 +526,7 @@ async def _process_reup_video_task(job_id: str, request: VideoCreateRequest):
             add_text=request.add_text_overlay and len(text_segments) > 0,
             text_segments=text_segments if request.add_text_overlay else None,
             new_audio_path=new_audio,
-            output_path=Path(settings. PROCESSED_DIR) / f"reup_{job_id}.mp4",
+            output_path=Path(settings.PROCESSED_DIR) / f"reup_{job_id}.mp4",
         )
 
         if result["success"]:
@@ -537,7 +537,7 @@ async def _process_reup_video_task(job_id: str, request: VideoCreateRequest):
             job.current_step = "Completed"
         else:
             job.status = JobStatus.FAILED
-            job.error_message = result. get("error", "Unknown error")
+            job.error_message = result.get("error", "Unknown error")
             job.current_step = "Failed"
 
         db.commit()
@@ -560,14 +560,14 @@ async def _process_story_video_task(job_id: str, request: StoryVideoRequest):
 
         # Update status
         job.status = JobStatus.DOWNLOADING
-        job. current_step = "Downloading video"
+        job.current_step = "Downloading video"
         db.commit()
 
         # Download video
         downloader = VideoDownloader()
         download_result = await downloader.download(
             request.source_url,
-            Path(settings. TEMP_DIR),
+            Path(settings.TEMP_DIR),
         )
         video_path = Path(download_result["path"])
 
@@ -586,7 +586,7 @@ async def _process_story_video_task(job_id: str, request: StoryVideoRequest):
         job.current_step = "Generating narration"
         db.commit()
 
-        tts = await get_tts_provider(settings. TTS_PROVIDER)
+        tts = await get_tts_provider(settings.TTS_PROVIDER)
         audio_path = await tts.synthesize(
             text=story,
             voice=request.tts_voice,
@@ -601,7 +601,7 @@ async def _process_story_video_task(job_id: str, request: StoryVideoRequest):
             base_video_path=video_path,
             story_text=story,
             audio_path=audio_path,
-            output_path=Path(settings.PROCESSED_DIR) / f"story_{job_id}. mp4",
+            output_path=Path(settings.PROCESSED_DIR) / f"story_{job_id}.mp4",
         )
 
         if output_path:
@@ -615,11 +615,11 @@ async def _process_story_video_task(job_id: str, request: StoryVideoRequest):
             job.error_message = "Failed to generate video"
             job.current_step = "Failed"
 
-        db. commit()
+        db.commit()
 
     except Exception as e:
         logger.error(f"Story video processing error: {e}")
-        job.status = JobStatus. FAILED
+        job.status = JobStatus.FAILED
         job.error_message = str(e)
         job.current_step = "Error"
         db.commit()
