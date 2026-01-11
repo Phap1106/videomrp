@@ -132,3 +132,62 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+# --------------------
+# Simple runtime schema adjustments
+# --------------------
+def ensure_video_jobs_columns():
+    """Ensure the VideoJob table has new columns added by recent schema changes.
+
+    Adds `processing_flow` (VARCHAR) and `processing_options` (JSON/JSONB) if absent.
+    This is a lightweight runtime helper meant to make development and CI
+    environments resilient when migrations were not applied.
+    """
+    with engine.connect() as conn:
+        try:
+            # Check for existing columns via information_schema
+            res = conn.execute(
+                text(
+                    "SELECT column_name FROM information_schema.columns WHERE table_name = 'video_jobs' AND column_name IN ('processing_flow', 'processing_options')"
+                )
+            )
+            existing = {row[0] for row in res.fetchall()}
+
+            # Add processing_flow if missing
+            if "processing_flow" not in existing:
+                try:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE video_jobs ADD COLUMN processing_flow VARCHAR(50) DEFAULT 'auto'"
+                        )
+                    )
+                except Exception:
+                    # Best-effort for DBs that may require different syntax
+                    conn.execute(
+                        text("ALTER TABLE video_jobs ADD COLUMN processing_flow VARCHAR(50)")
+                    )
+
+            # Add processing_options if missing
+            if "processing_options" not in existing:
+                dialect = conn.dialect.name.lower()
+                if dialect.startswith("postgres"):
+                    # Use JSONB when available
+                    conn.execute(
+                        text("ALTER TABLE video_jobs ADD COLUMN processing_options JSONB NULL")
+                    )
+                else:
+                    # MySQL/others: use JSON or TEXT
+                    try:
+                        conn.execute(
+                            text("ALTER TABLE video_jobs ADD COLUMN processing_options JSON NULL")
+                        )
+                    except Exception:
+                        conn.execute(
+                            text("ALTER TABLE video_jobs ADD COLUMN processing_options TEXT NULL")
+                        )
+        except Exception as exc:
+            # Don't crash the app if we can't alter schema - log and continue
+            from app.core.logger import logger
+
+            logger.warning(f"Could not ensure video_jobs columns: {exc}")

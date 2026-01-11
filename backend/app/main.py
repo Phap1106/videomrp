@@ -28,7 +28,13 @@ async def lifespan(app: FastAPI):
     # Create DB tables (sync engine) - run in thread to avoid blocking
     try:
         await anyio.to_thread.run_sync(lambda: Base.metadata.create_all(bind=engine))
-        logger.info("✅ Database tables created")
+        # Ensure runtime columns exist for backward compatibility when migrations are
+        # not present or have not been applied (development convenience).
+        from app.database import ensure_video_jobs_columns
+
+        await anyio.to_thread.run_sync(ensure_video_jobs_columns)
+
+        logger.info("✅ Database tables created and schema checked")
     except Exception as e:
         logger.error(f"❌ Database error: {e}")
 

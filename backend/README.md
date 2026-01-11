@@ -30,3 +30,8 @@ AI / Transcription providers:
   - DEEPGRAM_API_KEY=... # optional for transcript extraction (recommended)
 
 Important: If using Deepgram for transcription, FFmpeg must be available to extract WAV audio (see above).
+
+Database schema updates:
+- If you see an error like "column video_jobs.processing_flow does not exist", run the provided script to apply lightweight runtime schema fixes:
+  - `python scripts/ensure_schema.py`
+- In production, prefer applying proper Alembic migrations; the above script is intended for development/demo environments only.

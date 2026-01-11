@@ -36,9 +36,6 @@ from app.utils.file_utils import ensure_dirs
 router = APIRouter()
 
 
-# -------------------------
-# Helpers
-# -------------------------
 def _enum_value(x):
     return getattr(x, "value", x)
 
@@ -51,17 +48,14 @@ def _get_attr(obj, *names, default=None):
 
 
 def _order_col():
-    # Tránh 500 nếu model không có created_at
     return (
         getattr(VideoJob, "created_at", None)
-        or getattr(VideoJob, "createdAt", None)
         or getattr(VideoJob, "createdAt", None)
         or getattr(VideoJob, "id", None)
     )
 
 
 def serialize_job(job: VideoJob) -> dict[str, Any]:
-    """Serialize VideoJob safely for JSON response (avoid 500)."""
     return jsonable_encoder(
         {
             "id": str(getattr(job, "id", "")),
@@ -93,20 +87,8 @@ def serialize_job(job: VideoJob) -> dict[str, Any]:
     )
 
 
-# -------------------------
-# Health & Platforms
-# -------------------------
 @router.get("/health")
 async def health_check():
-    """Health check endpoint.
-    Dev-friendly: không trả 503 chỉ vì Redis (nếu bạn chưa chạy Redis).
-    """
-
-    """
-    Health check endpoint.
-    Dev-friendly: không trả 503 chỉ vì Redis (nếu bạn chưa chạy Redis).
-    """
-    # psutil is optional; avoid raising if it's not installed
     from redis import Redis
 
     uptime = None
@@ -134,7 +116,6 @@ async def health_check():
         "timestamp": time.time(),
     }
 
-    # Storage: tạo folder nếu thiếu
     try:
         ensure_dirs()
         test_file = Path("data") / "__healthcheck.txt"
@@ -144,13 +125,11 @@ async def health_check():
     except Exception as e:
         logger.error(f"Storage health check failed: {e}")
 
-    # DB
     try:
         db = SessionLocal()
         db.execute(text("SELECT 1"))
         checks["database"] = True
 
-        # stats
         checks["total_jobs"] = db.query(VideoJob).count()
         checks["active_jobs"] = (
             db.query(VideoJob)
@@ -165,7 +144,6 @@ async def health_check():
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
 
-    # Redis (optional)
     try:
         if getattr(settings, "REDIS_URL", None):
             redis_client = Redis.from_url(settings.REDIS_URL)
@@ -176,14 +154,47 @@ async def health_check():
     except Exception as e:
         logger.warning(f"Redis health check failed (optional): {e}")
 
-    # Status code: chỉ fail khi DB fail (đủ để UI hoạt động)
     status_code = 200 if checks["database"] else 503
     return JSONResponse(status_code=status_code, content=jsonable_encoder(checks))
 
 
+@router.get("/debug/db-columns")
+async def debug_db_columns():
+    if not settings.DEBUG:
+        raise HTTPException(status_code=403, detail="Debug endpoints disabled")
+
+    try:
+        db = SessionLocal()
+        res = db.execute(
+            text(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = 'video_jobs'"
+            )
+        )
+        cols = [r[0] for r in res.fetchall()]
+        db.close()
+        return {"columns": cols}
+    except Exception as e:
+        logger.error(f"Failed to read video_jobs columns: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/debug/ensure-schema")
+async def debug_ensure_schema(background_tasks: BackgroundTasks):
+    if not settings.DEBUG:
+        raise HTTPException(status_code=403, detail="Debug endpoints disabled")
+
+    try:
+        from app.database import ensure_video_jobs_columns
+
+        await anyio.to_thread.run_sync(ensure_video_jobs_columns)
+        return {"status": "ok", "message": "Schema ensure attempted"}
+    except Exception as e:
+        logger.error(f"Failed to ensure schema: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/platforms")
 async def get_platforms():
-    """Get available platforms and their settings"""
     detector = PlatformDetector()
     platforms: list[dict[str, Any]] = []
 
@@ -211,10 +222,8 @@ async def get_platforms():
 
 @router.get("/processing-flows")
 async def processing_flows():
-    """Return available processing flow presets and descriptions"""
     try:
         presets = getattr(settings, "PROCESSING_FLOW_PRESETS", {})
-        # Convert to serializable list
         items = [
             {
                 "key": k,
@@ -229,9 +238,6 @@ async def processing_flows():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# -------------------------
-# Jobs
-# -------------------------
 @router.post("/jobs")
 async def create_job(
     request: VideoCreateRequest,
@@ -327,7 +333,6 @@ async def list_jobs(
         try:
             query = query.order_by(col.desc())
         except Exception:
-            # fallback: không order
             pass
 
     items = query.offset((page - 1) * size).limit(size).all()
@@ -394,9 +399,6 @@ async def retry_job(
     return JSONResponse(content=jsonable_encoder(serialize_job(job)))
 
 
-# -------------------------
-# Analyze
-# -------------------------
 @router.post("/analyze")
 async def analyze_video(
     request: VideoAnalyzeRequest,
@@ -430,7 +432,7 @@ async def analyze_video(
         db.commit()
 
         analyzer = ContentAnalyzer()
-        options = {"duration": request.duration, "add_subtitles": False}
+        options = {"duration": 60, "add_subtitles": False}
         analysis_result = await analyzer.analyze_video(
             video_path=download_result["path"],
             platform=request.target_platform.value,
@@ -442,7 +444,6 @@ async def analyze_video(
         job.status = JobStatus.COMPLETED
         db.commit()
 
-        # cleanup
         try:
             Path(download_result["path"]).unlink(missing_ok=True)
             shutil.rmtree(work_dir, ignore_errors=True)
@@ -489,9 +490,6 @@ async def get_processed_video(filename: str):
     return FileResponse(path=file_path, media_type="video/mp4", filename=filename)
 
 
-# -------------------------
-# Batch
-# -------------------------
 @router.post("/batch")
 async def create_batch_jobs(
     requests: list[VideoCreateRequest],
@@ -535,9 +533,6 @@ async def create_batch_jobs(
     return JSONResponse(content=jsonable_encoder([serialize_job(j) for j in jobs]))
 
 
-# -------------------------
-# Upload
-# -------------------------
 @router.post("/upload")
 async def upload_video(
     background_tasks: BackgroundTasks,
@@ -596,9 +591,6 @@ async def upload_video(
     return JSONResponse(content=jsonable_encoder(serialize_job(job)))
 
 
-# -------------------------
-# Stats
-# -------------------------
 @router.get("/stats")
 async def get_system_stats(db: Session = Depends(get_db)):
     stats: dict[str, Any] = {}
@@ -638,96 +630,7 @@ async def get_system_stats(db: Session = Depends(get_db)):
     return JSONResponse(content=jsonable_encoder(stats))
 
 
-# -------------------------
-# Background processing
-# -------------------------
-# async def _process_video_job_async(job_id: str):
-#     """Process video job in background"""
-#     db = SessionLocal()
-#     job = db.query(VideoJob).filter(VideoJob.id == job_id).first()
-
-#     if not job:
-#         logger.error(f"Job {job_id} not found")
-#         db.close()
-#         return
-
-#     try:
-#         job.status = JobStatus.DOWNLOADING
-#         job.progress = 10
-#         job.current_step = "Downloading video"
-#         db.commit()
-
-#         downloader = VideoDownloader()
-#         work_dir = Path(settings.TEMP_DIR) / job_id
-#         work_dir.mkdir(parents=True, exist_ok=True)
-
-#         download_result = await downloader.download(job.source_url, work_dir)
-#         job.input_path = download_result["path"]
-#         job.progress = 30
-#         job.current_step = "Analyzing content"
-#         db.commit()
-
-#         analyzer = ContentAnalyzer()
-#         analysis_result = await analyzer.analyze_video(
-#             video_path=download_result["path"],
-#             platform=_enum_value(job.target_platform),
-#             video_type=_enum_value(job.video_type) or "short",
-#         )
-
-#         job.analysis_result = analysis_result
-#         job.progress = 50
-#         job.current_step = "Generating editing instructions"
-#         db.commit()
-
-#         editing_instructions = analysis_result.get("editing_instructions", [])
-#         job.ai_instructions = editing_instructions
-#         job.progress = 60
-#         job.current_step = "Editing video"
-#         db.commit()
-
-#         editor = VideoEditor()
-
-#         processed_dir = Path(settings.PROCESSED_DIR) / job_id
-#         processed_dir.mkdir(parents=True, exist_ok=True)
-
-#         output_path = processed_dir / f"{job_id}.mp4"
-
-#         await editor.edit_video(
-#             input_path=download_result["path"],
-#             instructions=editing_instructions,
-#             output_path=str(output_path),
-#             platform=_enum_value(job.target_platform),
-#         )
-
-#         job.output_path = str(output_path)
-#         job.output_filename = f"{job_id}.mp4"
-#         job.progress = 90
-#         job.current_step = "Finalizing"
-#         db.commit()
-
-#         if work_dir.exists():
-#             shutil.rmtree(work_dir, ignore_errors=True)
-
-#         job.status = JobStatus.COMPLETED
-#         job.progress = 100
-#         job.current_step = "Completed"
-#         db.commit()
-
-#         logger.info(f"Job {job_id} completed successfully")
-
-#     except Exception as e:
-#         logger.error(f"Job {job_id} failed: {e}")
-#         job.status = JobStatus.FAILED
-#         job.error_message = str(e)
-#         job.current_step = "Failed"
-#         db.commit()
-
-#     finally:
-#         db.close()
-
-
 async def _process_video_job_async(job_id: str):
-    """Process video job in background"""
     db = SessionLocal()
 
     try:
@@ -756,7 +659,6 @@ async def _process_video_job_async(job_id: str):
 
         analyzer = ContentAnalyzer()
 
-        # Resolve requested flow and merge with preset defaults if needed
         requested_flow = getattr(job, "processing_flow", "auto") or "auto"
         presets = getattr(settings, "PROCESSING_FLOW_PRESETS", {}) or {}
 
@@ -764,7 +666,6 @@ async def _process_video_job_async(job_id: str):
         effective_options = (getattr(job, "processing_options", {}) or {}).copy()
 
         if requested_flow == "auto":
-            # prefer 'ai' when AI keys available (Deepgram/OpenAI/Groq/Gemini)
             if any(
                 [
                     getattr(settings, "DEEPGRAM_API_KEY", None),
@@ -780,7 +681,6 @@ async def _process_video_job_async(job_id: str):
         preset = presets.get(effective_flow, {}) if isinstance(presets, dict) else {}
         preset_opts = preset.get("options", {}) if isinstance(preset, dict) else {}
 
-        # Apply preset defaults only for keys the user didn't provide explicitly
         for k, v in (preset_opts or {}).items():
             if k not in effective_options:
                 effective_options[k] = v
@@ -795,7 +695,6 @@ async def _process_video_job_async(job_id: str):
             "processing_options": effective_options,
         }
 
-        # Persist the effective flow and options so UI and audit logs reflect the actual processing path
         try:
             job.processing_flow = effective_flow
             job.processing_options = effective_options
@@ -803,7 +702,6 @@ async def _process_video_job_async(job_id: str):
         except Exception:
             db.rollback()
 
-        # If user (or auto) picked a fast flow, skip AI analysis and use rule-based instructions directly
         if effective_flow == "fast":
             logger.info("Using fast (rule-based) processing flow for job %s" % job_id)
             video_meta = await analyzer._get_video_metadata(download_result["path"])
@@ -837,18 +735,15 @@ async def _process_video_job_async(job_id: str):
         job.current_step = "Generating editing instructions"
         db.commit()
 
-        # Normalize editing instructions and provide a sensible fallback when AI didn't return actionable instructions
         editing_instructions = analysis_result.get("editing_instructions") or {}
         if isinstance(editing_instructions, list):
             editing_instructions = {"clips": editing_instructions}
 
-        # Propagate processing options and flow into editing instructions for the editor
         editing_instructions.setdefault(
             "processing_options", getattr(job, "processing_options", {}) or {}
         )
         editing_instructions.setdefault("processing_flow", getattr(job, "processing_flow", "auto"))
 
-        # If no clips, create a default single-clip instruction using job settings
         if not editing_instructions.get("clips"):
             duration = (
                 analysis_result.get("video_metadata", {}).get("duration") or job.duration or 60
@@ -869,7 +764,6 @@ async def _process_video_job_async(job_id: str):
 
             editing_instructions["clips"] = [clip]
 
-            # include subtitle text if requested
             if job.add_subtitles:
                 editing_instructions["subtitle_text"] = analysis_result.get("transcript", "")[:800]
 
@@ -899,7 +793,6 @@ async def _process_video_job_async(job_id: str):
         job.output_path = str(output_path)
         job.output_filename = f"{job_id}.mp4"
 
-        # If editing was skipped because ffmpeg is missing, mark it clearly
         if isinstance(edit_result, dict) and edit_result.get("skipped_editing"):
             job.progress = 90
             job.current_step = "Skipped editing (ffmpeg not available)"
@@ -907,7 +800,6 @@ async def _process_video_job_async(job_id: str):
             logger.warning(
                 f"Job {job_id}: ffmpeg missing, skipped editing and copied input to output"
             )
-            # Record a job event for this condition
             try:
                 ev = JobEvent(
                     job_id=job.id,
@@ -925,7 +817,6 @@ async def _process_video_job_async(job_id: str):
             job.current_step = "Finalizing"
             db.commit()
 
-        # Cleanup temp files
         if work_dir.exists():
             shutil.rmtree(work_dir, ignore_errors=True)
 
@@ -939,13 +830,11 @@ async def _process_video_job_async(job_id: str):
     except Exception as e:
         logger.error(f"❌ Job {job_id} failed: {e}", exc_info=True)
 
-        # Re-fetch job in case of detached session
         job = db.query(VideoJob).filter(VideoJob.id == job_id).first()
         if job:
             job.status = JobStatus.FAILED
             job.error_message = str(e)
             job.current_step = "Failed"
-            # Record the error as a job event for easy retrieval
             try:
                 ev = JobEvent(
                     job_id=job.id, event_type="error", message=str(e), data={"step": "processing"}
@@ -961,19 +850,7 @@ async def _process_video_job_async(job_id: str):
 
 
 def process_video_job(job_id: str):
-    """Sync wrapper for BackgroundTasks"""
-    import asyncio
-
-    asyncio.run(_process_video_job_async(job_id))
-
-
-def process_video_job(job_id: str):
-    """
-    Sync wrapper để BackgroundTasks chạy trong threadpool,
-    tránh block event-loop làm API pending.
-    """
     anyio.run(_process_video_job_async, job_id)
 
 
-# Keep compatibility with app.main import
 api_router = router
