@@ -24,11 +24,11 @@ class Settings(BaseSettings):
     )
 
     # ==================== APPLICATION ====================
-    APP_NAME: str = "Video Reup AI Tool"
-    APP_VERSION: str = "2.0.0"
+    APP_NAME: str = "Video Reup AI Factory"
+    APP_VERSION: str = "3.0.0"
     APP_ENV: str = Field(default="development", env="APP_ENV")
-    ENV: str = Field(default="dev", env="ENV")  # Alias for APP_ENV
-    DEBUG: bool = Field(default=False, env="DEBUG")
+    ENV:  str = Field(default="dev", env="ENV")
+    DEBUG: bool = Field(default=True, env="DEBUG")
     SECRET_KEY: str = Field(default="your-secret-key-change-in-production", env="SECRET_KEY")
 
     # ==================== SERVER ====================
@@ -44,190 +44,88 @@ class Settings(BaseSettings):
     PROCESSED_DIR: Path = Field(default_factory=lambda: _backend_dir() / "data" / "processed")
     UPLOAD_DIR: Path = Field(default_factory=lambda: _backend_dir() / "uploads")
     LOG_DIR: Path = Field(default_factory=lambda: _backend_dir() / "logs")
+    VOICE_SAMPLES_DIR: Path = Field(default_factory=lambda: _backend_dir() / "data" / "voice_samples")
+    FONTS_DIR: Path = Field(default_factory=lambda: _backend_dir() / "data" / "fonts")
 
     # ==================== CORS ====================
     CORS_ORIGINS: List[str] = Field(
-        default=["http://localhost:3000", "http://127.0.0.1:3000"],
+        default=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000"],
         env="CORS_ORIGINS",
     )
 
     # ==================== DATABASE ====================
-    DATABASE_URL: str = Field(
+    DATABASE_URL:  str = Field(
         default="mysql+pymysql://user:password@localhost/video_reup",
         env="DATABASE_URL",
     )
 
     # ==================== REDIS ====================
-    REDIS_URL: str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
+    REDIS_URL:  str = Field(default="redis://localhost:6379/0", env="REDIS_URL")
 
     # ==================== STORAGE ====================
-    MAX_UPLOAD_SIZE: int = Field(default=500, env="MAX_UPLOAD_SIZE")  # MB
+    MAX_UPLOAD_SIZE: int = Field(default=2000, env="MAX_UPLOAD_SIZE")  # MB
+    MAX_VIDEO_DURATION: int = Field(default=3600, env="MAX_VIDEO_DURATION")  # seconds (1 hour)
 
     # ==================== AI PROVIDERS ====================
-    # ==================== AI PROVIDERS ====================
-    AI_PROVIDER: str = Field(
-        default="auto", env="AI_PROVIDER"
-    )  # auto | openai | groq | gemini | mock
-
+    AI_PROVIDER: str = Field(default="auto", env="AI_PROVIDER")  # auto | openai | gemini | mock
+    
     # OpenAI
     OPENAI_API_KEY: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
     OPENAI_MODEL: str = Field(default="gpt-4o-mini", env="OPENAI_MODEL")
-
+    OPENAI_TTS_VOICE: str = Field(default="nova", env="OPENAI_TTS_VOICE")  # nova, echo, fable, onyx, shimmer, alloy
+    
+    # Google Cloud
+    GOOGLE_API_KEY: Optional[str] = Field(default=None, env="GOOGLE_API_KEY")
+    GOOGLE_PROJECT_ID:  Optional[str] = Field(default=None, env="GOOGLE_PROJECT_ID")
+    GOOGLE_TTS_VOICE: str = Field(default="en-US-Standard-A", env="GOOGLE_TTS_VOICE")
+    
     # Groq (OpenAI-compatible)
     GROQ_API_KEY: Optional[str] = Field(default=None, env="GROQ_API_KEY")
-    GROQ_MODEL: str = Field(default="llama-3.1-70b-versatile", env="GROQ_MODEL")
-
-    # Gemini
-    GEMINI_API_KEY: Optional[str] = Field(default=None, env="GEMINI_API_KEY")
-    GEMINI_MODEL: str = Field(default="gemini-pro", env="GEMINI_MODEL")
-
-    # Other AI
+    
+    # Speech Recognition
+    WHISPER_MODEL: str = Field(default="base", env="WHISPER_MODEL")  # tiny, base, small, medium, large
     DEEPGRAM_API_KEY: Optional[str] = Field(default=None, env="DEEPGRAM_API_KEY")
 
-    # ==================== VIDEO APIs ====================
-    TIKWM_API_KEY: Optional[str] = Field(default=None, env="TIKWM_API_KEY")
-    DOUYIN_API_KEY: Optional[str] = Field(default=None, env="DOUYIN_API_KEY")
-    YOUTUBE_API_KEY: Optional[str] = Field(default=None, env="YOUTUBE_API_KEY")
+    # ==================== TTS SETTINGS ====================
+    TTS_PROVIDER: str = Field(default="openai", env="TTS_PROVIDER")  # openai, google, elevenlabs
+    TTS_VOICE_GENDER: str = Field(default="female", env="TTS_VOICE_GENDER")  # male, female, neutral
+    TTS_SPEAKING_RATE: float = Field(default=1.0, env="TTS_SPEAKING_RATE")
+    TTS_PITCH: float = Field(default=0.0, env="TTS_PITCH")
 
-    # ==================== EXTERNAL TOOLS ====================
+    # ==================== VIDEO PROCESSING ====================
     FFMPEG_PATH: str = Field(default="ffmpeg", env="FFMPEG_PATH")
-    FFPROBE_PATH: str = Field(default="ffprobe", env="FFPROBE_PATH")
-    YTDLP_PATH: str = Field(default="yt-dlp", env="YTDLP_PATH")
+    FFPROBE_PATH:  str = Field(default="ffprobe", env="FFPROBE_PATH")
+    
+    # Video quality settings
+    VIDEO_CODEC: str = Field(default="libx264", env="VIDEO_CODEC")
+    VIDEO_PRESET: str = Field(default="fast", env="VIDEO_PRESET")  # ultrafast, faster, fast, medium, slow, slower
+    VIDEO_BITRATE: str = Field(default="5000k", env="VIDEO_BITRATE")
+    AUDIO_BITRATE: str = Field(default="192k", env="AUDIO_BITRATE")
 
-    # ==================== AUDIO SEPARATION ====================
-    # Choose separation tool: 'spleeter' or 'demucs'. If using demucs, set USE_DEMUCS=True.
-    USE_DEMUCS: bool = Field(default=False, env="USE_DEMUCS")
-    SEPARATION_TOOL: str = Field(default="spleeter", env="SEPARATION_TOOL")  # spleeter|demucs
-    SEPARATION_THREADS: int = Field(default=2, env="SEPARATION_THREADS")
-    SEPARATION_OUTPUT_DIR: Path = Field(
-        default_factory=lambda: _backend_dir() / "data" / "processed" / "stems"
-    )
+    # ==================== TEXT OVERLAY SETTINGS ====================
+    DEFAULT_FONT_FILE: str = Field(default="data/fonts/Arial.ttf", env="DEFAULT_FONT_FILE")
+    DEFAULT_FONT_SIZE: int = Field(default=60, env="DEFAULT_FONT_SIZE")
+    DEFAULT_FONT_COLOR: str = Field(default="FFFFFF", env="DEFAULT_FONT_COLOR")  # Hex color
+    DEFAULT_TEXT_POSITION: str = Field(default="bottom", env="DEFAULT_TEXT_POSITION")  # top, center, bottom
+    DEFAULT_TEXT_BG_ALPHA: float = Field(default=0.7, env="DEFAULT_TEXT_BG_ALPHA")
 
-    # ==================== TTS ====================
-    TTS_PROVIDER: str = Field(default="piper", env="TTS_PROVIDER")
-    PIPER_PATH: str = Field(default="piper", env="PIPER_PATH")
-    PIPER_MODEL_PATH: Optional[str] = Field(default=None, env="PIPER_MODEL_PATH")
+    # ==================== PROCESSING DEFAULTS ====================
+    DEFAULT_PROCESSING_FLOW: str = Field(default="auto", env="DEFAULT_PROCESSING_FLOW")
+    MAX_CONCURRENT_JOBS: int = Field(default=5, env="MAX_CONCURRENT_JOBS")
+    JOB_TIMEOUT: int = Field(default=7200, env="JOB_TIMEOUT")  # 2 hours
+
+    # ==================== SUBTITLE SETTINGS ====================
+    SUBTITLE_LANGUAGE: str = Field(default="vi", env="SUBTITLE_LANGUAGE")  # Vietnamese
+    SUBTITLE_FORMAT: str = Field(default="srt", env="SUBTITLE_FORMAT")  # srt, vtt, ass
 
     # ==================== RATE LIMITING ====================
     RATE_LIMIT_PER_MINUTE: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
-    MAX_CONCURRENT_JOBS: int = Field(default=5, env="MAX_CONCURRENT_JOBS")
 
-    # ==================== PLATFORM TOGGLES ====================
-    ENABLE_TIKTOK: bool = Field(default=True, env="ENABLE_TIKTOK")
-    ENABLE_YOUTUBE: bool = Field(default=True, env="ENABLE_YOUTUBE")
-    ENABLE_FACEBOOK: bool = Field(default=True, env="ENABLE_FACEBOOK")
-    ENABLE_INSTAGRAM: bool = Field(default=True, env="ENABLE_INSTAGRAM")
-    ENABLE_DOUYIN: bool = Field(default=True, env="ENABLE_DOUYIN")
-
-    # ==================== SECURITY ====================
-    JWT_SECRET_KEY: str = Field(default="your-jwt-secret-key", env="JWT_SECRET_KEY")
-    JWT_ALGORITHM: str = Field(default="HS256", env="JWT_ALGORITHM")
-    JWT_EXPIRE_MINUTES: int = Field(default=60 * 24 * 7, env="JWT_EXPIRE_MINUTES")  # 7 days
-
-    # ==================== MONITORING ====================
-    SENTRY_DSN: Optional[str] = Field(default=None, env="SENTRY_DSN")
-    ENABLE_PROMETHEUS: bool = Field(default=False, env="ENABLE_PROMETHEUS")
-
-    # ==================== PROCESSING FLOW PRESETS ====================
-    PROCESSING_FLOW_PRESETS: dict = Field(
-        default_factory=lambda: {
-            "auto": {
-                "label": "Auto",
-                "description": "Automatically choose flow based on available AI keys and user options.",
-                "options": {},
-            },
-            "fast": {
-                "label": "Fast",
-                "description": "Rule-based minimal processing (fast). Good for quick trims and basic edits.",
-                "options": {
-                    "separate_audio": False,
-                    "diarization": False,
-                    "ocr": False,
-                    "auto_reup": False,
-                    "change_music": True,
-                    "add_effects": True,
-                },
-            },
-            "ai": {
-                "label": "AI",
-                "description": "Use transcription + AI-generated editing instructions for richer cuts and subtitles.",
-                "options": {
-                    "separate_audio": False,
-                    "diarization": True,
-                    "ocr": False,
-                    "auto_reup": False,
-                },
-            },
-            "full": {
-                "label": "Full",
-                "description": "Full pipeline: audio separation, OCR, diarization, AI edits and optional auto reup.",
-                "options": {
-                    "separate_audio": True,
-                    "diarization": True,
-                    "ocr": True,
-                    "auto_reup": True,
-                    "change_music": True,
-                    "add_effects": True,
-                },
-            },
-            "custom": {
-                "label": "Custom",
-                "description": "Choose individual options manually.",
-                "options": {},
-            },
-        }
-    )
-
-    # ==================== VALIDATORS ====================
-    @validator("CORS_ORIGINS", pre=True)
-    def parse_cors_origins(cls, v):
-        """Parse CORS origins from string or list"""
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
-
-    @validator("DATABASE_URL")
-    def validate_database_url(cls, v):
-        """Validate database URL is not empty"""
-        if not v:
-            raise ValueError("DATABASE_URL must be set")
-        return v
-
-    @validator("ENV", always=True)
-    def sync_env(cls, v, values):
-        """Sync ENV with APP_ENV"""
-        return values.get("APP_ENV", v)
-
-    # ==================== PROPERTIES ====================
-    @property
-    def is_production(self) -> bool:
-        """Check if running in production"""
-        return self.APP_ENV.lower() in ("production", "prod")
-
-    @property
-    def is_development(self) -> bool:
-        """Check if running in development"""
-        return self.APP_ENV.lower() in ("development", "dev")
-
-    # ==================== METHODS ====================
-    def ensure_dirs(self) -> None:
-        """Create all required directories"""
-        for p in [
-            self.DATA_DIR,
-            self.TEMP_DIR,
-            self.JOBS_DIR,
-            self.PROCESSED_DIR,
-            self.SEPARATION_OUTPUT_DIR,
-            self.UPLOAD_DIR,
-            self.LOG_DIR,
-        ]:
-            try:
-                p.mkdir(parents=True, exist_ok=True)
-            except Exception as e:
-                # Don't crash app if directory creation fails
-                print(f"Warning: Could not create directory {p}: {e}")
+    # ==================== FEATURE FLAGS ====================
+    ENABLE_TTS: bool = Field(default=True, env="ENABLE_TTS")
+    ENABLE_TRANSCRIPTION: bool = Field(default=True, env="ENABLE_TRANSCRIPTION")
+    ENABLE_STORY_GENERATION: bool = Field(default=True, env="ENABLE_STORY_GENERATION")
+    ENABLE_TEXT_OVERLAY: bool = Field(default=True, env="ENABLE_TEXT_OVERLAY")
 
 
-# ==================== GLOBAL INSTANCE ====================
 settings = Settings()
-settings.ensure_dirs()

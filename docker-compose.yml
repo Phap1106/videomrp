@@ -1,60 +1,166 @@
-version: '3.8'
+version: '3.9'
 
 services:
+  # PostgreSQL Database
   postgres:
-    image: postgres:15
+    image: postgres:16-alpine
+    container_name: video_reup_postgres
     environment:
-      POSTGRES_DB: video_reup_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: video_reup
+      POSTGRES_USER: video_user
+      POSTGRES_PASSWORD: "11062006Ph@p! @#"
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U video_user"]
+      interval: 10s
+      timeout:  5s
+      retries:  5
+    networks:
+      - video_reup_network
 
+  # Redis Cache
   redis:
-    image: redis:7-alpine
+    image:  redis:7-alpine
+    container_name: video_reup_redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - video_reup_network
 
+  # Backend API
   backend:
-    build: .
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: video_reup_backend
+    environment:
+      # Application
+      APP_NAME: "Video Reup AI Factory"
+      APP_VERSION: "3.0.0"
+      APP_ENV: "production"
+      DEBUG: "False"
+      SECRET_KEY: "TAyU8xGwUv5mMABKN0eKXefSnp9IMDF08Xs3SyTfSVhVBrnFf1Qo6iCtIaRDU5dz"
+
+      # Server
+      HOST: "0.0.0.0"
+      PORT: "8000"
+
+      # CORS
+      CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000","http://frontend:3000"]'
+
+      # Database
+      DATABASE_URL: "postgresql+psycopg2://video_user:11062006Ph%40p%21%40%23@postgres:5432/video_reup"
+
+      # Redis
+      REDIS_URL: "redis://redis:6379/0"
+
+      # Storage
+      UPLOAD_DIR: "./data/uploads"
+      PROCESSED_DIR: "./data/processed"
+      TEMP_DIR: "./data/temp"
+      JOBS_DIR: "./data/jobs"
+      VOICE_SAMPLES_DIR: "./data/voice_samples"
+      FONTS_DIR: "./data/fonts"
+      LOG_DIR: "./logs"
+
+      # AI Providers
+      AI_PROVIDER:  "auto"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      OPENAI_MODEL: "gpt-4o-mini"
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY}"
+      GOOGLE_PROJECT_ID: "${GOOGLE_PROJECT_ID}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
+      GEMINI_MODEL: "gemini-2.0-flash-exp"
+
+      # TTS
+      TTS_PROVIDER: "openai"
+      DEEPGRAM_API_KEY: "${DEEPGRAM_API_KEY}"
+
+      # FFmpeg
+      FFMPEG_PATH: "ffmpeg"
+      FFPROBE_PATH: "ffprobe"
+
+      # Processing
+      MAX_CONCURRENT_JOBS: "5"
+      JOB_TIMEOUT: "7200"
+      SUBTITLE_LANGUAGE: "vi"
+      SUBTITLE_FORMAT: "srt"
+
     ports:
       - "8000:8000"
-    environment:
-      - DB_URL=postgresql://user:password@postgres:5432/video_reup_db
-      - REDIS_URL=redis://redis:6379/0
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    volumes:
-      - ./data:/app/data
-      - ./models:/app/models
-    depends_on:
-      - postgres
-      - redis
 
-  worker:
-    build: .
-    command: ["python", "-m", "app.worker"]
-    environment:
-      - DB_URL=postgresql://user:password@postgres:5432/video_reup_db
-      - REDIS_URL=redis://redis:6379/0
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      - ./data:/app/data
-      - ./models:/app/models
-    depends_on:
-      - postgres
-      - redis
-      - backend
+      - ./backend/data:/app/data
+      - ./backend/logs:/app/logs
+      - ./backend/app:/app/app
 
+    depends_on:
+      postgres: 
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    networks:
+      - video_reup_network
+
+    restart: unless-stopped
+
+  # Frontend Web App
   frontend:
-    build: ./frontend
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: video_reup_frontend
+    environment:
+      NEXT_PUBLIC_API_URL: "http://backend:8000/api"
+      NODE_ENV: "production"
+
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_BASE=http://localhost:8000
+
     depends_on:
       - backend
 
+    networks:
+      - video_reup_network
+
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: video_reup_nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    ports: 
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - video_reup_network
+    restart: unless-stopped
+
+networks:
+  video_reup_network:
+    driver: bridge
+
 volumes:
-  postgres_data:
+  postgres_data: 
+    driver: local
+  redis_data:
+    driver: local

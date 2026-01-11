@@ -1,191 +1,426 @@
-import json
+"""
+FFmpeg Operations - Video processing utilities
+"""
+
 import subprocess
-from typing import Any
-
+import json
+from pathlib import Path
+from typing import Any, Optional, Tuple
+import asyncio
 from app.core.logger import logger
-
 from app.core.config import settings
 
 
-class FFmpegOperations:
-    """FFmpeg operations wrapper"""
+class FFmpegError(Exception):
+    """FFmpeg operation error"""
+    pass
+
+
+class FFmpegOps:
+    """FFmpeg wrapper for video operations"""
 
     def __init__(self):
         self.ffmpeg_path = settings.FFMPEG_PATH
-        self.ffprobe_path = settings.FFPROBE_PATH
+        self.ffprobe_path = settings. FFPROBE_PATH
 
-        # Check availability of binaries early to provide clearer error messages
-        self.available = True
-        self.missing_binaries: list[str] = []
-
-        import shutil
-
-        # If provided paths look like names, try shutil.which
-        ffmpeg_ok = (
-            shutil.which(self.ffmpeg_path) is not None
-            if isinstance(self.ffmpeg_path, str)
-            else False
-        )
-        ffprobe_ok = (
-            shutil.which(self.ffprobe_path) is not None
-            if isinstance(self.ffprobe_path, str)
-            else False
-        )
-
-        # Also accept explicit paths that exist
-        from pathlib import Path
-
-        if not ffmpeg_ok and Path(self.ffmpeg_path).exists():
-            ffmpeg_ok = True
-        if not ffprobe_ok and Path(self.ffprobe_path).exists():
-            ffprobe_ok = True
-
-        if not ffmpeg_ok:
-            self.missing_binaries.append(str(self.ffmpeg_path))
-        if not ffprobe_ok:
-            self.missing_binaries.append(str(self.ffprobe_path))
-
-        if self.missing_binaries:
-            self.available = False
-            logger.warning(
-                f"FFmpeg/FFprobe binaries not found ({', '.join(self.missing_binaries)}). "
-                "Install ffmpeg and/or set FFMPEG_PATH / FFPROBE_PATH in env to enable video operations."
+    async def _run_command(self, cmd: list[str]) -> Tuple[int, str, str]:
+        """Run FFmpeg command asynchronously"""
+        try: 
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess. PIPE,
             )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=3600)
+            return process.returncode, stdout.decode(), stderr.decode()
+        except asyncio.TimeoutError:
+            raise FFmpegError("FFmpeg command timed out")
 
-    def _ensure_available(self):
-        if not self.available:
-            raise RuntimeError(
-                f"FFmpeg/FFprobe not available ({', '.join(self.missing_binaries)}). "
-                "Install ffmpeg and/or set FFMPEG_PATH / FFPROBE_PATH in env."
-            )
-
-    async def get_video_info(self, video_path: str) -> dict[str, Any]:
-        """Get video information"""
+    async def get_video_info(self, video_path: Path) -> dict[str, Any]:
+        """Get video information using ffprobe"""
         try:
-            self._ensure_available()
-
             cmd = [
                 self.ffprobe_path,
-                "-v",
-                "quiet",
-                "-print_format",
-                "json",
-                "-show_format",
-                "-show_streams",
+                "-v", "error",
+                "-select_streams", "v: 0",
+                "-show_entries",
+                "format=duration,size: stream=width,height,r_frame_rate,codec_name",
+                "-of", "json",
                 str(video_path),
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            data = json.loads(result.stdout)
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"ffprobe error: {stderr}")
 
-            info = {
-                "duration": float(data["format"].get("duration", 0)),
-                "size": int(data["format"].get("size", 0)),
-                "bitrate": int(data["format"].get("bit_rate", 0)),
+            data = json. loads(stdout)
+            
+            format_info = data.get("format", {})
+            stream_info = data.get("streams", [{}])[0]
+            
+            # Parse framerate
+            fps_str = stream_info.get("r_frame_rate", "30/1")
+            fps_parts = fps_str.split("/")
+            fps = float(fps_parts[0]) / float(fps_parts[1]) if len(fps_parts) == 2 else 30.0
+
+            return {
+                "duration": float(format_info.get("duration", 0)),
+                "size": int(format_info.get("size", 0)),
+                "width": int(stream_info.get("width", 1920)),
+                "height": int(stream_info.get("height", 1080)),
+                "fps": fps,
+                "codec":  stream_info.get("codec_name", "h264"),
             }
 
-            for stream in data.get("streams", []):
-                if stream["codec_type"] == "video":
-                    info.update(
-                        {
-                            "width": stream.get("width", 0),
-                            "height": stream.get("height", 0),
-                            "codec": stream.get("codec_name", ""),
-                            "fps": eval(stream.get("avg_frame_rate", "0/1"))
-                            if "avg_frame_rate" in stream
-                            else 0,
-                        }
-                    )
-                    break
-
-            return info
         except Exception as e:
-            logger.error(f"Failed to get video info: {e}")
-            return {}
+            logger. error(f"Error getting video info: {e}")
+            raise FFmpegError(f"Failed to get video info: {str(e)}")
 
-    async def extract_clip(
-        self, input_path: str, output_path: str, start_time: float, end_time: float
-    ):
-        """Extract clip from video"""
-        self._ensure_available()
+    async def extract_audio(self, video_path: Path, output_audio: Path) -> Path:
+        """Extract audio from video"""
+        try:
+            logger.info(f"Extracting audio from {video_path}")
+            output_audio.parent.mkdir(parents=True, exist_ok=True)
 
-        cmd = [
-            self.ffmpeg_path,
-            "-i",
-            input_path,
-            "-ss",
-            str(start_time),
-            "-to",
-            str(end_time),
-            "-c",
-            "copy",
-            "-y",
-            output_path,
-        ]
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video_path),
+                "-q:a", "0",
+                "-map", "a",
+                "-y",
+                str(output_audio),
+            ]
 
-        subprocess.run(cmd, check=True, capture_output=True)
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Audio extraction failed: {stderr}")
 
-    async def apply_filters(
+            logger.info(f"Audio extracted to {output_audio}")
+            return output_audio
+
+        except Exception as e:
+            logger.error(f"Audio extraction error: {e}")
+            raise
+
+    async def replace_audio(
         self,
-        input_path: str,
-        output_path: str,
-        filters: str | None,
-        audio_filters: str | None = None,
-    ):
-        """Apply video filters (supports optional audio filters)
+        video_path: Path,
+        audio_path: Path,
+        output_path: Path,
+    ) -> Path:
+        """Replace video audio with new audio"""
+        try:
+            logger.info(f"Replacing audio in {video_path}")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        - If filters is None, no -vf is passed.
-        - If audio_filters provided, we encode audio (aac) and apply -af.
-        """
-        self._ensure_available()
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video_path),
+                "-i", str(audio_path),
+                "-c:v", "copy",  # Copy video codec
+                "-c:a", "aac",   # Use AAC for audio
+                "-map", "0:v:0",
+                "-map", "1:a:0",
+                "-shortest",
+                "-y",
+                str(output_path),
+            ]
 
-        cmd = [self.ffmpeg_path, "-i", input_path]
-        if filters:
-            cmd += ["-vf", filters]
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Audio replacement failed:  {stderr}")
 
-        if audio_filters:
-            cmd += ["-af", audio_filters, "-c:a", "aac", "-b:a", "128k"]
-        else:
-            cmd += ["-c:a", "copy"]
+            logger.info(f"Audio replaced, output:  {output_path}")
+            return output_path
 
-        cmd += ["-y", output_path]
+        except Exception as e:
+            logger.error(f"Audio replacement error: {e}")
+            raise
 
-        subprocess.run(cmd, check=True, capture_output=True)
+    async def add_text_overlay(
+        self,
+        video_path: Path,
+        text_segments: list[dict],  # [{"start": 0, "end": 5, "text": "Hello", "style": {... }}]
+        output_path: Path,
+        font_path: Optional[Path] = None,
+        font_size: int = 60,
+        font_color: str = "white",
+        bg_color: str = "black",
+        bg_alpha: float = 0.7,
+        position: str = "bottom",  # top, center, bottom
+    ) -> Path:
+        """Add text overlay to video with timing"""
+        try:
+            logger. info(f"Adding text overlay to {video_path}")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    async def concatenate_videos(self, concat_file: str, output_path: str):
+            font_path = font_path or Path(settings.DEFAULT_FONT_FILE)
+            if not font_path.exists():
+                logger.warning(f"Font not found: {font_path}, using default")
+                font_path = None
+
+            # Get video info for positioning
+            video_info = await self.get_video_info(video_path)
+            width = video_info["width"]
+            height = video_info["height"]
+
+            # Build filter complex
+            filters = []
+            
+            for i, seg in enumerate(text_segments):
+                start = seg. get("start", 0)
+                end = seg.get("end", 10)
+                text = seg.get("text", "").replace("'", "\\'").replace('"', '\\"')
+                
+                # Position calculation
+                if position == "top": 
+                    y_pos = int(height * 0.1)
+                elif position == "center":
+                    y_pos = int((height - font_size) / 2)
+                else:  # bottom
+                    y_pos = int(height - font_size - 20)
+                
+                x_pos = int((width - len(text) * font_size * 0.5) / 2)  # center x
+
+                # Font path handling
+                font_arg = f": fontfile={str(font_path)}" if font_path else ""
+                
+                # Create text filter with timing
+                text_filter = f"drawtext=text='{text}': fontsize={font_size}: fontcolor={font_color}: x={x_pos}:y={y_pos}:enable='between(t,{start},{end})'{font_arg}"
+                
+                filters.append(text_filter)
+
+            # Combine all filters
+            if filters:
+                filter_complex = ",".join(filters)
+            else:
+                filter_complex = None
+
+            # Build command
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video_path),
+                "-c:a", "aac",
+                "-b:a", settings.AUDIO_BITRATE,
+                "-y",
+            ]
+
+            if filter_complex:
+                cmd. extend(["-vf", filter_complex])
+
+            cmd.extend(["-c:v", settings.VIDEO_CODEC, "-preset", settings.VIDEO_PRESET])
+            cmd.append(str(output_path))
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Text overlay failed: {stderr}")
+
+            logger.info(f"Text overlay added, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger. error(f"Text overlay error:  {e}")
+            raise
+
+    async def cut_video(
+        self,
+        video_path: Path,
+        start_time: float,
+        end_time: float,
+        output_path: Path,
+    ) -> Path:
+        """Cut video segment"""
+        try:
+            logger.info(f"Cutting video from {start_time}s to {end_time}s")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            duration = end_time - start_time
+
+            cmd = [
+                self. ffmpeg_path,
+                "-i", str(video_path),
+                "-ss", str(start_time),
+                "-t", str(duration),
+                "-c:v", settings.VIDEO_CODEC,
+                "-preset", settings.VIDEO_PRESET,
+                "-c:a", "aac",
+                "-y",
+                str(output_path),
+            ]
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Video cut failed: {stderr}")
+
+            logger.info(f"Video cut completed, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Video cut error: {e}")
+            raise
+
+    async def concatenate_videos(
+        self,
+        video_paths: list[Path],
+        output_path:  Path,
+    ) -> Path:
         """Concatenate multiple videos"""
-        self._ensure_available()
+        try:
+            logger.info(f"Concatenating {len(video_paths)} videos")
+            output_path.parent. mkdir(parents=True, exist_ok=True)
 
-        cmd = [
-            self.ffmpeg_path,
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            concat_file,
-            "-c",
-            "copy",
-            "-y",
-            output_path,
-        ]
+            # Create concat file
+            concat_file = output_path. parent / "concat_list.txt"
+            with open(concat_file, "w") as f:
+                for vp in video_paths:
+                    f.write(f"file '{str(vp)}'\n")
 
-        subprocess.run(cmd, check=True, capture_output=True)
+            cmd = [
+                self.ffmpeg_path,
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(concat_file),
+                "-c", "copy",
+                "-y",
+                str(output_path),
+            ]
 
-    async def extract_frame(self, input_path: str, output_path: str, time_offset: str):
-        """Extract single frame"""
-        self._ensure_available()
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Concatenation failed: {stderr}")
 
-        cmd = [
-            self.ffmpeg_path,
-            "-i",
-            input_path,
-            "-ss",
-            time_offset,
-            "-vframes",
-            "1",
-            "-y",
-            output_path,
-        ]
+            # Cleanup concat file
+            concat_file.unlink()
 
-        subprocess.run(cmd, check=True, capture_output=True)
+            logger. info(f"Videos concatenated, output: {output_path}")
+            return output_path
+
+        except Exception as e: 
+            logger.error(f"Video concatenation error: {e}")
+            raise
+
+    async def resize_video(
+        self,
+        video_path: Path,
+        width: int,
+        height: int,
+        output_path: Path,
+    ) -> Path:
+        """Resize video"""
+        try:
+            logger.info(f"Resizing video to {width}x{height}")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video_path),
+                "-vf", f"scale={width}:{height}",
+                "-c: v", settings.VIDEO_CODEC,
+                "-preset", settings. VIDEO_PRESET,
+                "-c:a", "aac",
+                "-y",
+                str(output_path),
+            ]
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Video resize failed: {stderr}")
+
+            logger.info(f"Video resized, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Video resize error: {e}")
+            raise
+
+    async def generate_thumbnail(
+        self,
+        video_path: Path,
+        timestamp: float,
+        output_path: Path,
+        width: int = 320,
+        height: int = 180,
+    ) -> Path:
+        """Generate thumbnail from video"""
+        try:
+            logger.info(f"Generating thumbnail at {timestamp}s")
+            output_path. parent.mkdir(parents=True, exist_ok=True)
+
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video_path),
+                "-ss", str(timestamp),
+                "-vframes", "1",
+                "-vf", f"scale={width}:{height}",
+                "-y",
+                str(output_path),
+            ]
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Thumbnail generation failed:  {stderr}")
+
+            logger.info(f"Thumbnail generated, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Thumbnail generation error:  {e}")
+            raise
+
+    async def convert_video_format(
+        self,
+        video_path: Path,
+        output_format: str,
+        output_path: Path,
+        quality: str = "high",
+    ) -> Path:
+        """Convert video to different format"""
+        try:
+            logger. info(f"Converting video to {output_format}")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Quality presets
+            bitrate_map = {
+                "low": "2000k",
+                "medium": "5000k",
+                "high":  "10000k",
+                "very_high": "20000k",
+            }
+
+            bitrate = bitrate_map.get(quality, bitrate_map["high"])
+
+            cmd = [
+                self. ffmpeg_path,
+                "-i", str(video_path),
+                "-c:v", settings.VIDEO_CODEC,
+                "-preset", settings.VIDEO_PRESET,
+                "-b:v", bitrate,
+                "-c:a", "aac",
+                "-b:a", settings.AUDIO_BITRATE,
+                "-y",
+                str(output_path),
+            ]
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Format conversion failed: {stderr}")
+
+            logger.info(f"Video converted, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger. error(f"Video conversion error: {e}")
+            raise
+
+
+# Global instance
+ffmpeg_ops = FFmpegOps()
