@@ -7,11 +7,11 @@ import time
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, File, UploadFile, Query, HTTPException, BackgroundTasks, Depends
-from fastapi. responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
 from app.core.logger import logger
-from app.core. config import settings
+from app.core.config import settings
 from app.database import get_db, SessionLocal
 from app.models import VideoJob, JobStatus
 from app.schemas import (
@@ -26,13 +26,13 @@ from app.schemas import (
     VoiceOption,
     ProcessingFlowOption,
 )
-from app.services.ai. tts_provider import get_tts_provider
+from app.services.ai.tts_provider import get_tts_provider
 from app.services.ai.transcription_service import get_transcription_provider
 from app.services.ai.story_generator import get_story_generator
 from app.services.video_downloader import VideoDownloader
 from app.services.audio_processor import audio_processor
-from app.services. text_overlay_engine import text_overlay_engine, TextStyle
-from app.services. video_editor import video_editor
+from app.services.text_overlay_engine import text_overlay_engine, TextStyle
+from app.services.video_editor import video_editor
 from app.utils.file_utils import ensure_dirs
 
 router = APIRouter()
