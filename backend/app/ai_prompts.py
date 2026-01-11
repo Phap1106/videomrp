@@ -2,15 +2,15 @@
 AI Prompt Templates for video editing and content analysis
 """
 
-from typing import Dict, List, Any
 import json
+from typing import Any
 
 
 class VideoPrompts:
     """Collection of AI prompts for different video types and platforms"""
-    
+
     # ================ CONTENT ANALYSIS PROMPTS ================
-    
+
     @staticmethod
     def get_content_analysis_prompt(transcript: str, platform: str, video_type: str) -> str:
         """Get prompt for analyzing video content"""
@@ -20,21 +20,21 @@ class VideoPrompts:
             "facebook": "Facebook",
             "instagram": "Instagram",
             "douyin": "Douyin",
-            "twitter": "Twitter/X"
+            "twitter": "Twitter/X",
         }
-        
+
         video_type_names = {
             "short": "Short Form (15-60 seconds)",
             "highlight": "Highlight Reel (2-5 minutes)",
             "viral": "Viral Content (30-90 seconds)",
             "meme": "Meme Video (15-30 seconds)",
             "full": "Full Length (original duration)",
-            "reel": "Reel/Story (15-90 seconds)"
+            "reel": "Reel/Story (15-90 seconds)",
         }
-        
+
         platform_name = platform_names.get(platform.lower(), platform.upper())
         video_type_name = video_type_names.get(video_type.lower(), video_type)
-        
+
         return f"""
         Bạn là một chuyên gia phân tích video với 10 năm kinh nghiệm cho nền tảng {platform_name}.
         
@@ -96,13 +96,15 @@ class VideoPrompts:
         - Nhịp độ: {VideoPrompts._get_pacing(video_type)}
         - Phong cách: {VideoPrompts._get_style(video_type)}
         """
-    
+
     # ================ VIDEO EDITING INSTRUCTION PROMPTS ================
-    
+
     @staticmethod
-    def get_editing_instructions_prompt(analysis: Dict[str, Any], platform: str, video_type: str) -> str:
+    def get_editing_instructions_prompt(
+        analysis: dict[str, Any], platform: str, video_type: str
+    ) -> str:
         """Get prompt for generating video editing instructions"""
-        
+
         templates = {
             "tiktok_short": """
             TẠO VIDEO TIKTOK SHORT (15-60s) - CÔNG THỨC THÀNH CÔNG:
@@ -131,7 +133,6 @@ class VideoPrompts:
             - Sound effects: whoosh, ding, swoosh
             - Transition: glitch, zoom, slide
             """,
-            
             "youtube_highlight": """
             TẠO YOUTUBE HIGHLIGHT (3-10 phút) - CHUYÊN NGHIỆP:
             
@@ -160,7 +161,6 @@ class VideoPrompts:
             - Color grading đồng nhất
             - Sound design chuyên nghiệp
             """,
-            
             "viral_content": """
             TẠO VIDEO VIRAL (30-90s) - CÔNG THỨC LAN TRUYỀN:
             
@@ -186,7 +186,6 @@ class VideoPrompts:
             - Social currency
             - Public visibility
             """,
-            
             "meme_video": """
             TẠO VIDEO MEME (15-30s) - HÀI HƯỚC + SHAREABLE:
             
@@ -218,7 +217,6 @@ class VideoPrompts:
             - Green screen effects
             - Sound effects exaggerated
             """,
-            
             "facebook_reel": """
             TẠO FACEBOOK REEL (15-90s) - TỐI ƯU ENGAGEMENT:
             
@@ -243,19 +241,19 @@ class VideoPrompts:
             - 10-30s: CONTENT DELIVERY (nội dung chính)
             - 30-40s: ENGAGEMENT ASK (kêu gọi tương tác)
             - 40-45s: CTA CLEAR (follow, share, link)
-            """
+            """,
         }
-        
+
         # Xác định template key
-        template_key = f"{platform.lower()}_{video_type.lower()}" 
+        template_key = f"{platform.lower()}_{video_type.lower()}"
         if template_key not in templates:
             if platform.lower() == "youtube":
                 template_key = "youtube_highlight"
             else:
                 template_key = "tiktok_short"
-        
+
         base_template = templates[template_key]
-        
+
         return f"""
         {base_template}
         
@@ -335,9 +333,9 @@ class VideoPrompts:
         5. Thêm yếu tố bất ngờ để tăng retention rate
         6. Tối ưu cho mobile viewing nếu {platform.upper()} chủ yếu trên mobile
         """
-    
+
     # ================ COPYRIGHT AVOIDANCE PROMPTS ================
-    
+
     @staticmethod
     def get_copyright_avoidance_prompt(content: str) -> str:
         """Get prompt for avoiding copyright issues"""
@@ -400,9 +398,9 @@ class VideoPrompts:
             ]
         }}
         """
-    
+
     # ================ HASHTAG & TITLE GENERATION ================
-    
+
     @staticmethod
     def get_hashtag_generation_prompt(content: str, platform: str) -> str:
         """Get prompt for generating hashtags and titles"""
@@ -412,12 +410,12 @@ class VideoPrompts:
             "facebook": "Community-focused, location-based, interest-based, group-specific",
             "instagram": "Aesthetic, brand-specific, campaign hashtags, photography",
             "douyin": "Chinese trending, local challenges, popular phrases, e-commerce",
-            "twitter": "News-focused, trending topics, conversation starters"
+            "twitter": "News-focused, trending topics, conversation starters",
         }
-        
+
         platform_name = platform.upper()
         hashtag_style = platform_hashtag_styles.get(platform, "general")
-        
+
         return f"""
         TẠO HASHTAG VÀ TIÊU ĐỀ TỐI ƯU CHO {platform_name}:
         
@@ -479,9 +477,9 @@ class VideoPrompts:
         - Phù hợp với đối tượng người dùng {platform_name}
         - Tuân thủ guidelines của {platform_name}
         """
-    
+
     # ================ HELPER METHODS ================
-    
+
     @staticmethod
     def _get_ideal_duration(video_type: str) -> str:
         durations = {
@@ -490,10 +488,10 @@ class VideoPrompts:
             "viral": "30-90 seconds",
             "meme": "15-30 seconds",
             "full": "Original duration",
-            "reel": "15-90 seconds"
+            "reel": "15-90 seconds",
         }
         return durations.get(video_type, "15-60 seconds")
-    
+
     @staticmethod
     def _get_pacing(video_type: str) -> str:
         pacing = {
@@ -502,10 +500,10 @@ class VideoPrompts:
             "viral": "Variable (build up to climax)",
             "meme": "Fast (precise timing with music)",
             "full": "Original pacing",
-            "reel": "Medium-fast (engaging throughout)"
+            "reel": "Medium-fast (engaging throughout)",
         }
         return pacing.get(video_type, "Medium")
-    
+
     @staticmethod
     def _get_style(video_type: str) -> str:
         styles = {
@@ -514,6 +512,6 @@ class VideoPrompts:
             "viral": "Emotional, surprising, shareable",
             "meme": "Humorous, relatable, template-based",
             "full": "Original style",
-            "reel": "Visually appealing, story-driven"
+            "reel": "Visually appealing, story-driven",
         }
         return styles.get(video_type, "Energetic and engaging")

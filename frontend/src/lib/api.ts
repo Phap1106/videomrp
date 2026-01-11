@@ -14,6 +14,8 @@ export type Job = {
   target_platform: Platform;
   video_type: VideoType;
   duration: number;
+  processing_flow?: ProcessingFlow;
+  processing_options?: Record<string, any>;
   created_at: string;
   updated_at?: string | null;
   completed_at?: string | null;
@@ -22,6 +24,8 @@ export type Job = {
 };
 
 export type Paginated<T> = { items: T[]; total: number; page: number; size: number; pages: number };
+
+export type ProcessingFlow = "auto" | "fast" | "ai" | "full" | "custom";
 
 export type VideoCreateRequest = {
   source_url: string;
@@ -35,6 +39,8 @@ export type VideoCreateRequest = {
   remove_watermark: boolean;
   add_effects: boolean;
   meme_template?: string | null;
+  processing_flow?: ProcessingFlow;
+  processing_options?: Record<string, any>;
 };
 
 export type PlatformSettings = {
@@ -88,6 +94,7 @@ export const api = {
 
   health: () => req<SystemStatus>("/api/health"),
   platforms: () => req<PlatformSettings[]>("/api/platforms"),
+  processingFlows: () => req<any>("/api/processing-flows"),
 
   createJob: (body: VideoCreateRequest) =>
     req<Job>("/api/jobs", { method: "POST", body: JSON.stringify(body) }),
@@ -102,6 +109,7 @@ export const api = {
   },
 
   getJob: (id: string) => req<Job>(`/api/jobs/${id}`),
+  getJobLogs: (id: string) => req<any>(`/api/jobs/${id}/logs`),
   deleteJob: (id: string) => req<{ success: boolean; message: string }>(`/api/jobs/${id}`, { method: "DELETE" }),
   retryJob: (id: string) => req<Job>(`/api/jobs/${id}/retry`, { method: "POST" }),
 

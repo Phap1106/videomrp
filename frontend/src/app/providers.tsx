@@ -1,173 +1,213 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from "react";
 import {
-  Upload, Link, Film, Globe, Scissors, Type, Music, Zap, Sparkles,
-  Download, Clock, Play, Pause, Settings, RefreshCw, Check, X,
-  ChevronRight, AlertCircle, BarChart, Hash, FileText, Video
-} from 'lucide-react'
+  Upload,
+  Link,
+  Film,
+  Globe,
+  Scissors,
+  Type,
+  Music,
+  Zap,
+  Sparkles,
+  Download,
+  Clock,
+  Play,
+  Pause,
+  Settings,
+  RefreshCw,
+  Check,
+  X,
+  ChevronRight,
+  AlertCircle,
+  BarChart,
+  Hash,
+  FileText,
+  Video,
+} from "lucide-react";
 
-type Platform = 'tiktok' | 'youtube' | 'facebook' | 'instagram' | 'douyin' | 'twitter' | 'generic'
-type VideoType = 'short' | 'highlight' | 'viral' | 'meme' | 'full' | 'reel'
-type JobStatus = 'pending' | 'downloading' | 'analyzing' | 'processing' | 'completed' | 'failed' | 'cancelled'
+type Platform =
+  | "tiktok"
+  | "youtube"
+  | "facebook"
+  | "instagram"
+  | "douyin"
+  | "twitter"
+  | "generic";
+type VideoType = "short" | "highlight" | "viral" | "meme" | "full" | "reel";
+type JobStatus =
+  | "pending"
+  | "downloading"
+  | "analyzing"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 interface VideoJob {
-  id: string
-  title: string
-  status: JobStatus
-  progress: number
-  current_step: string
-  source_platform: string
-  target_platform: string
-  video_type: string
-  duration: number
-  created_at: string
-  updated_at?: string
-  completed_at?: string
-  output_filename?: string
-  error_message?: string
+  id: string;
+  title: string;
+  status: JobStatus;
+  progress: number;
+  current_step: string;
+  source_platform: string;
+  target_platform: string;
+  video_type: string;
+  duration: number;
+  created_at: string;
+  updated_at?: string;
+  completed_at?: string;
+  output_filename?: string;
+  error_message?: string;
 }
 
 interface AnalysisResult {
-  job_id: string
-  summary: string
-  category: string
-  mood: string
-  duration: number
-  key_moments: any[]
-  scenes: any[]
-  copyright_risks: any[]
-  suggestions: any
-  hashtags: string[]
-  titles: string[]
-  viral_score: number
-  processing_time: number
+  job_id: string;
+  summary: string;
+  category: string;
+  mood: string;
+  duration: number;
+  key_moments: any[];
+  scenes: any[];
+  copyright_risks: any[];
+  suggestions: any;
+  hashtags: string[];
+  titles: string[];
+  viral_score: number;
+  processing_time: number;
 }
 
 interface PlatformSetting {
-  platform: Platform
-  name: string
-  max_duration: number
-  aspect_ratios: string[]
-  watermark_allowed: boolean
-  copyright_strictness: string
-  recommended_formats: string[]
-  max_size_mb: number
-  audio_requirements: any
+  platform: Platform;
+  name: string;
+  max_duration: number;
+  aspect_ratios: string[];
+  watermark_allowed: boolean;
+  copyright_strictness: string;
+  recommended_formats: string[];
+  max_size_mb: number;
+  audio_requirements: any;
 }
 
 export default function VideoEditorPage() {
   // State for video input
-  const [videoUrl, setVideoUrl] = useState('')
-  const [videoFile, setVideoFile] = useState<File | null>(null)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
   // State for editing options
-  const [targetPlatform, setTargetPlatform] = useState<Platform>('tiktok')
-  const [videoType, setVideoType] = useState<VideoType>('short')
-  const [duration, setDuration] = useState(60)
-  const [addSubtitles, setAddSubtitles] = useState(true)
-  const [changeMusic, setChangeMusic] = useState(true)
-  const [removeWatermark, setRemoveWatermark] = useState(true)
-  const [addEffects, setAddEffects] = useState(true)
-  const [memeTemplate, setMemeTemplate] = useState('')
-  
+  const [targetPlatform, setTargetPlatform] = useState<Platform>("tiktok");
+  const [videoType, setVideoType] = useState<VideoType>("short");
+  const [duration, setDuration] = useState(60);
+  const [addSubtitles, setAddSubtitles] = useState(true);
+  const [changeMusic, setChangeMusic] = useState(true);
+  const [removeWatermark, setRemoveWatermark] = useState(true);
+  const [addEffects, setAddEffects] = useState(true);
+  const [memeTemplate, setMemeTemplate] = useState("");
+
   // State for jobs and results
-  const [jobs, setJobs] = useState<VideoJob[]>([])
-  const [selectedJob, setSelectedJob] = useState<VideoJob | null>(null)
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
-  const [platformSettings, setPlatformSettings] = useState<PlatformSetting[]>([])
-  
+  const [jobs, setJobs] = useState<VideoJob[]>([]);
+  const [selectedJob, setSelectedJob] = useState<VideoJob | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
+    null
+  );
+  const [platformSettings, setPlatformSettings] = useState<PlatformSetting[]>(
+    []
+  );
+
   // UI state
-  const [isLoading, setIsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'upload' | 'jobs' | 'analysis'>('upload')
-  const [videoPreview, setVideoPreview] = useState<string | null>(null)
-  
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"upload" | "jobs" | "analysis">(
+    "upload"
+  );
+  const [videoPreview, setVideoPreview] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch platform settings on mount
   useEffect(() => {
-    fetchPlatformSettings()
-    fetchJobs()
-  }, [])
+    fetchPlatformSettings();
+    fetchJobs();
+  }, []);
 
   // Fetch platform settings from backend
   const fetchPlatformSettings = async () => {
     try {
-      const response = await fetch('/api/platforms')
-      const data = await response.json()
-      setPlatformSettings(data)
+      const response = await fetch("/api/platforms");
+      const data = await response.json();
+      setPlatformSettings(data);
     } catch (error) {
-      console.error('Failed to fetch platform settings:', error)
+      console.error("Failed to fetch platform settings:", error);
     }
-  }
+  };
 
   // Fetch jobs from backend
   const fetchJobs = async () => {
     try {
-      const response = await fetch('/api/jobs')
-      const data = await response.json()
-      setJobs(data.items || [])
+      const response = await fetch("/api/jobs");
+      const data = await response.json();
+      setJobs(data.items || []);
     } catch (error) {
-      console.error('Failed to fetch jobs:', error)
+      console.error("Failed to fetch jobs:", error);
     }
-  }
+  };
 
   // Handle file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file && file.type.startsWith('video/')) {
-      setVideoFile(file)
-      setVideoUrl('')
-      
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith("video/")) {
+      setVideoFile(file);
+      setVideoUrl("");
+
       // Create preview URL
-      const previewUrl = URL.createObjectURL(file)
-      setVideoPreview(previewUrl)
+      const previewUrl = URL.createObjectURL(file);
+      setVideoPreview(previewUrl);
     }
-  }
+  };
 
   // Handle URL input
   const handleUrlSubmit = () => {
     if (videoUrl) {
-      setVideoFile(null)
-      setVideoPreview(videoUrl)
+      setVideoFile(null);
+      setVideoPreview(videoUrl);
     }
-  }
+  };
 
   // Create a new video job
   const createJob = async () => {
     if (!videoUrl && !videoFile) {
-      alert('Please provide a video URL or file')
-      return
+      alert("Please provide a video URL or file");
+      return;
     }
 
-    setIsLoading(true)
-    
+    setIsLoading(true);
+
     try {
-      let jobData
-      
+      let jobData;
+
       if (videoFile) {
         // Upload file
-        const formData = new FormData()
-        formData.append('file', videoFile)
-        formData.append('target_platform', targetPlatform)
-        formData.append('video_type', videoType)
-        formData.append('duration', duration.toString())
-        formData.append('add_subtitles', addSubtitles.toString())
-        formData.append('change_music', changeMusic.toString())
-        formData.append('remove_watermark', removeWatermark.toString())
-        formData.append('add_effects', addEffects.toString())
-        
+        const formData = new FormData();
+        formData.append("file", videoFile);
+        formData.append("target_platform", targetPlatform);
+        formData.append("video_type", videoType);
+        formData.append("duration", duration.toString());
+        formData.append("add_subtitles", addSubtitles.toString());
+        formData.append("change_music", changeMusic.toString());
+        formData.append("remove_watermark", removeWatermark.toString());
+        formData.append("add_effects", addEffects.toString());
+
         if (memeTemplate) {
-          formData.append('meme_template', memeTemplate)
+          formData.append("meme_template", memeTemplate);
         }
-        
-        const response = await fetch('/api/upload', {
-          method: 'POST',
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
           body: formData,
-        })
-        
-        jobData = await response.json()
+        });
+
+        jobData = await response.json();
       } else {
         // Use URL
         const requestBody = {
@@ -180,80 +220,88 @@ export default function VideoEditorPage() {
           remove_watermark: removeWatermark,
           add_effects: addEffects,
           meme_template: memeTemplate || undefined,
-        }
-        
-        const response = await fetch('/api/jobs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          processing_flow: "auto",
+          processing_options: {
+            separate_audio: false,
+            diarization: false,
+            ocr: false,
+            auto_reup: false,
+          },
+        };
+
+        const response = await fetch("/api/jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(requestBody),
-        })
-        
-        jobData = await response.json()
+        });
+
+        jobData = await response.json();
       }
-      
+
       // Add new job to list
-      setJobs(prev => [jobData, ...prev])
-      setSelectedJob(jobData)
-      setActiveTab('jobs')
-      
+      setJobs((prev) => [jobData, ...prev]);
+      setSelectedJob(jobData);
+      setActiveTab("jobs");
+
       // Start polling for job updates
-      pollJobStatus(jobData.id)
-      
+      pollJobStatus(jobData.id);
     } catch (error) {
-      console.error('Failed to create job:', error)
-      alert('Failed to create job. Please try again.')
+      console.error("Failed to create job:", error);
+      alert("Failed to create job. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Poll job status until completed
   const pollJobStatus = async (jobId: string) => {
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/jobs/${jobId}`)
-        const job = await response.json()
-        
-        setJobs(prev => prev.map(j => j.id === jobId ? job : j))
-        
+        const response = await fetch(`/api/jobs/${jobId}`);
+        const job = await response.json();
+
+        setJobs((prev) => prev.map((j) => (j.id === jobId ? job : j)));
+
         if (selectedJob?.id === jobId) {
-          setSelectedJob(job)
+          setSelectedJob(job);
         }
-        
-        if (job.status === 'completed' || job.status === 'failed') {
-          clearInterval(interval)
-          
+
+        if (job.status === "completed" || job.status === "failed") {
+          clearInterval(interval);
+
           // If completed, fetch analysis if available
-          if (job.status === 'completed') {
+          if (job.status === "completed") {
             try {
-              const analysisResponse = await fetch(`/api/analyze?job_id=${jobId}`)
-              const analysis = await analysisResponse.json()
-              setAnalysisResult(analysis)
-              setActiveTab('analysis')
+              const analysisResponse = await fetch(
+                `/api/analyze?job_id=${jobId}`
+              );
+              const analysis = await analysisResponse.json();
+              setAnalysisResult(analysis);
+              setActiveTab("analysis");
             } catch (error) {
-              console.error('Failed to fetch analysis:', error)
+              console.error("Failed to fetch analysis:", error);
             }
           }
         }
       } catch (error) {
-        console.error('Failed to poll job status:', error)
-        clearInterval(interval)
+        console.error("Failed to poll job status:", error);
+        clearInterval(interval);
       }
-    }, 2000) // Poll every 2 seconds
-    
+    }, 2000); // Poll every 2 seconds
+
     // Cleanup after 5 minutes
-    setTimeout(() => clearInterval(interval), 5 * 60 * 1000)
-  }
+    setTimeout(() => clearInterval(interval), 5 * 60 * 1000);
+  };
 
   // Analyze video without processing
   const analyzeVideo = async () => {
     if (!videoUrl && !videoFile) {
-      alert('Please provide a video URL or file')
-      return
+      alert("Please provide a video URL or file");
+      return;
     }
-    
-    setIsLoading(true)
-    
+
+    setIsLoading(true);
+
     try {
       const requestBody = {
         source_url: videoUrl || URL.createObjectURL(videoFile!),
@@ -261,67 +309,77 @@ export default function VideoEditorPage() {
         analyze_content: true,
         detect_scenes: true,
         check_copyright: true,
-      }
-      
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      };
+
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
-      })
-      
-      const result = await response.json()
-      setAnalysisResult(result)
-      setActiveTab('analysis')
-      
+      });
+
+      const result = await response.json();
+      setAnalysisResult(result);
+      setActiveTab("analysis");
     } catch (error) {
-      console.error('Failed to analyze video:', error)
-      alert('Failed to analyze video. Please try again.')
+      console.error("Failed to analyze video:", error);
+      alert("Failed to analyze video. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Download processed video
   const downloadVideo = async (jobId: string, filename: string) => {
     try {
-      const response = await fetch(`/api/processed/${filename}`)
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
+      const response = await fetch(`/api/processed/${filename}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Failed to download video:', error)
-      alert('Failed to download video.')
+      console.error("Failed to download video:", error);
+      alert("Failed to download video.");
     }
-  }
+  };
 
   // Get platform icon
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
-      case 'tiktok': return '🎵'
-      case 'youtube': return '▶️'
-      case 'facebook': return '📘'
-      case 'instagram': return '📷'
-      case 'douyin': return '🎵'
-      case 'twitter': return '🐦'
-      default: return '🎬'
+      case "tiktok":
+        return "🎵";
+      case "youtube":
+        return "▶️";
+      case "facebook":
+        return "📘";
+      case "instagram":
+        return "📷";
+      case "douyin":
+        return "🎵";
+      case "twitter":
+        return "🐦";
+      default:
+        return "🎬";
     }
-  }
+  };
 
   // Get status color
   const getStatusColor = (status: JobStatus) => {
     switch (status) {
-      case 'completed': return 'bg-green-500'
-      case 'failed': return 'bg-red-500'
-      case 'processing': return 'bg-blue-500'
-      default: return 'bg-yellow-500'
+      case "completed":
+        return "bg-green-500";
+      case "failed":
+        return "bg-red-500";
+      case "processing":
+        return "bg-blue-500";
+      default:
+        return "bg-yellow-500";
     }
-  }
+  };
 
   return (
     <div className="min-h-screen p-4 text-white bg-gradient-to-br from-gray-900 to-black md:p-6">
@@ -332,7 +390,9 @@ export default function VideoEditorPage() {
             AI Video Editor Pro
           </span>
         </h1>
-        <p className="text-gray-400">Transform videos for any platform with AI-powered editing</p>
+        <p className="text-gray-400">
+          Transform videos for any platform with AI-powered editing
+        </p>
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -388,7 +448,9 @@ export default function VideoEditorPage() {
                   />
                   <Upload className="mx-auto mb-3 text-gray-400" size={32} />
                   <p className="text-gray-400">Click to upload video file</p>
-                  <p className="mt-1 text-sm text-gray-500">MP4, MOV, AVI, MKV up to 500MB</p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    MP4, MOV, AVI, MKV up to 500MB
+                  </p>
                   {videoFile && (
                     <p className="mt-2 text-green-400">{videoFile.name}</p>
                   )}
@@ -430,9 +492,15 @@ export default function VideoEditorPage() {
                     <button
                       key={platform.platform}
                       onClick={() => setTargetPlatform(platform.platform)}
-                      className={`p-3 rounded-lg flex flex-col items-center justify-center gap-2 transition-all ${targetPlatform === platform.platform ? 'bg-blue-500/20 border border-blue-500' : 'bg-gray-900 hover:bg-gray-800'}`}
+                      className={`p-3 rounded-lg flex flex-col items-center justify-center gap-2 transition-all ${
+                        targetPlatform === platform.platform
+                          ? "bg-blue-500/20 border border-blue-500"
+                          : "bg-gray-900 hover:bg-gray-800"
+                      }`}
                     >
-                      <span className="text-2xl">{getPlatformIcon(platform.platform)}</span>
+                      <span className="text-2xl">
+                        {getPlatformIcon(platform.platform)}
+                      </span>
                       <span className="text-sm">{platform.name}</span>
                     </button>
                   ))}
@@ -446,11 +514,24 @@ export default function VideoEditorPage() {
                   Video Type
                 </label>
                 <div className="grid grid-cols-3 gap-2">
-                  {(['short', 'highlight', 'viral', 'meme', 'full', 'reel'] as VideoType[]).map((type) => (
+                  {(
+                    [
+                      "short",
+                      "highlight",
+                      "viral",
+                      "meme",
+                      "full",
+                      "reel",
+                    ] as VideoType[]
+                  ).map((type) => (
                     <button
                       key={type}
                       onClick={() => setVideoType(type)}
-                      className={`p-3 rounded-lg text-center transition-all ${videoType === type ? 'bg-purple-500/20 border border-purple-500' : 'bg-gray-900 hover:bg-gray-800'}`}
+                      className={`p-3 rounded-lg text-center transition-all ${
+                        videoType === type
+                          ? "bg-purple-500/20 border border-purple-500"
+                          : "bg-gray-900 hover:bg-gray-800"
+                      }`}
                     >
                       <span className="text-sm capitalize">{type}</span>
                     </button>
@@ -484,12 +565,35 @@ export default function VideoEditorPage() {
                 <label className="text-sm text-gray-300">Editing Options</label>
                 <div className="space-y-3">
                   {[
-                    { label: 'Add Subtitles', icon: Type, checked: addSubtitles, setter: setAddSubtitles },
-                    { label: 'Change Music', icon: Music, checked: changeMusic, setter: setChangeMusic },
-                    { label: 'Remove Watermark', icon: Scissors, checked: removeWatermark, setter: setRemoveWatermark },
-                    { label: 'Add Effects', icon: Sparkles, checked: addEffects, setter: setAddEffects },
+                    {
+                      label: "Add Subtitles",
+                      icon: Type,
+                      checked: addSubtitles,
+                      setter: setAddSubtitles,
+                    },
+                    {
+                      label: "Change Music",
+                      icon: Music,
+                      checked: changeMusic,
+                      setter: setChangeMusic,
+                    },
+                    {
+                      label: "Remove Watermark",
+                      icon: Scissors,
+                      checked: removeWatermark,
+                      setter: setRemoveWatermark,
+                    },
+                    {
+                      label: "Add Effects",
+                      icon: Sparkles,
+                      checked: addEffects,
+                      setter: setAddEffects,
+                    },
                   ].map((option) => (
-                    <label key={option.label} className="flex items-center justify-between p-3 bg-gray-900 rounded-lg cursor-pointer hover:bg-gray-800">
+                    <label
+                      key={option.label}
+                      className="flex items-center justify-between p-3 bg-gray-900 rounded-lg cursor-pointer hover:bg-gray-800"
+                    >
                       <div className="flex items-center gap-3">
                         <option.icon size={18} className="text-gray-400" />
                         <span>{option.label}</span>
@@ -501,8 +605,16 @@ export default function VideoEditorPage() {
                           onChange={(e) => option.setter(e.target.checked)}
                           className="sr-only"
                         />
-                        <div className={`w-10 h-6 rounded-full transition-colors ${option.checked ? 'bg-blue-500' : 'bg-gray-700'}`}>
-                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${option.checked ? 'translate-x-5' : 'translate-x-1'}`} />
+                        <div
+                          className={`w-10 h-6 rounded-full transition-colors ${
+                            option.checked ? "bg-blue-500" : "bg-gray-700"
+                          }`}
+                        >
+                          <div
+                            className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                              option.checked ? "translate-x-5" : "translate-x-1"
+                            }`}
+                          />
                         </div>
                       </div>
                     </label>
@@ -527,7 +639,7 @@ export default function VideoEditorPage() {
                 className="flex items-center justify-center flex-1 gap-2 px-6 py-3 font-medium transition-all rounded-lg md:flex-none bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Zap size={18} />
-                {isLoading ? 'Processing...' : 'Start Editing'}
+                {isLoading ? "Processing..." : "Start Editing"}
               </button>
             </div>
           </div>
@@ -539,13 +651,17 @@ export default function VideoEditorPage() {
           <div className="border bg-gray-800/50 backdrop-blur-sm rounded-xl border-gray-700/50">
             <div className="flex border-b border-gray-700/50">
               {[
-                { id: 'jobs', label: 'Jobs', icon: Film },
-                { id: 'analysis', label: 'Analysis', icon: BarChart },
+                { id: "jobs", label: "Jobs", icon: Film },
+                { id: "analysis", label: "Analysis", icon: BarChart },
               ].map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-white'}`}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? "text-blue-400 border-b-2 border-blue-400"
+                      : "text-gray-400 hover:text-white"
+                  }`}
                 >
                   <tab.icon size={16} />
                   {tab.label}
@@ -554,7 +670,7 @@ export default function VideoEditorPage() {
             </div>
 
             {/* Jobs List */}
-            {activeTab === 'jobs' && (
+            {activeTab === "jobs" && (
               <div className="max-h-[600px] overflow-y-auto p-4">
                 {jobs.length === 0 ? (
                   <div className="py-8 text-center text-gray-500">
@@ -568,22 +684,38 @@ export default function VideoEditorPage() {
                       <div
                         key={job.id}
                         onClick={() => setSelectedJob(job)}
-                        className={`p-4 rounded-lg cursor-pointer transition-all ${selectedJob?.id === job.id ? 'bg-blue-500/10 border border-blue-500/30' : 'bg-gray-900 hover:bg-gray-800'}`}
+                        className={`p-4 rounded-lg cursor-pointer transition-all ${
+                          selectedJob?.id === job.id
+                            ? "bg-blue-500/10 border border-blue-500/30"
+                            : "bg-gray-900 hover:bg-gray-800"
+                        }`}
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">{getPlatformIcon(job.target_platform)}</span>
+                            <span className="text-lg">
+                              {getPlatformIcon(job.target_platform)}
+                            </span>
                             <div>
-                              <h3 className="font-medium truncate max-w-[180px]">{job.title}</h3>
-                              <p className="text-xs text-gray-400 capitalize">{job.video_type} • {job.target_platform}</p>
+                              <h3 className="font-medium truncate max-w-[180px]">
+                                {job.title}
+                              </h3>
+                              <p className="text-xs text-gray-400 capitalize">
+                                {job.video_type} • {job.target_platform}
+                              </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${getStatusColor(job.status)}`} />
-                            <span className="text-xs capitalize">{job.status}</span>
+                            <div
+                              className={`w-3 h-3 rounded-full ${getStatusColor(
+                                job.status
+                              )}`}
+                            />
+                            <span className="text-xs capitalize">
+                              {job.status}
+                            </span>
                           </div>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <div className="flex justify-between text-xs text-gray-400">
                             <span>{job.current_step}</span>
@@ -595,26 +727,58 @@ export default function VideoEditorPage() {
                               style={{ width: `${job.progress}%` }}
                             />
                           </div>
-                          
-                          {job.status === 'completed' && job.output_filename && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                downloadVideo(job.id, job.output_filename!)
-                              }}
-                              className="flex items-center justify-center w-full gap-2 py-2 mt-2 text-sm text-green-400 transition-colors rounded-lg bg-green-500/20 hover:bg-green-500/30"
-                            >
-                              <Download size={14} />
-                              Download Video
-                            </button>
-                          )}
-                          
-                          {job.status === 'failed' && (
+
+                          {job.status === "completed" &&
+                            job.output_filename && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  downloadVideo(job.id, job.output_filename!);
+                                }}
+                                className="flex items-center justify-center w-full gap-2 py-2 mt-2 text-sm text-green-400 transition-colors rounded-lg bg-green-500/20 hover:bg-green-500/30"
+                              >
+                                <Download size={14} />
+                                Download Video
+                              </button>
+                            )}
+
+                          {job.status === "failed" && (
                             <div className="flex items-center gap-2 text-sm text-red-400">
                               <AlertCircle size={14} />
-                              <span className="truncate">{job.error_message}</span>
+                              <span className="truncate">
+                                {job.error_message}
+                              </span>
                             </div>
                           )}
+
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  const logs = await api.getJobLogs(job.id);
+                                  const msgs = (logs || [])
+                                    .map(
+                                      (l: any) =>
+                                        `${l.created_at}: [${l.event_type}] ${l.message}`
+                                    )
+                                    .join("\n");
+                                  alert(msgs || "No logs");
+                                } catch (err) {
+                                  alert("Failed to load logs");
+                                }
+                              }}
+                              className="text-xs text-gray-300 underline"
+                            >
+                              View logs
+                            </button>
+
+                            {job.processing_flow && (
+                              <div className="text-xs text-gray-400 ml-auto">
+                                Flow: {job.processing_flow}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -624,7 +788,7 @@ export default function VideoEditorPage() {
             )}
 
             {/* Analysis Results */}
-            {activeTab === 'analysis' && analysisResult && (
+            {activeTab === "analysis" && analysisResult && (
               <div className="p-4 space-y-4 max-h-[600px] overflow-y-auto">
                 {/* Summary */}
                 <div className="space-y-3">
@@ -632,16 +796,22 @@ export default function VideoEditorPage() {
                     <FileText size={16} />
                     Summary
                   </h3>
-                  <p className="text-sm text-gray-300">{analysisResult.summary}</p>
-                  
+                  <p className="text-sm text-gray-300">
+                    {analysisResult.summary}
+                  </p>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 bg-gray-900 rounded-lg">
                       <p className="text-xs text-gray-400">Category</p>
-                      <p className="font-medium capitalize">{analysisResult.category}</p>
+                      <p className="font-medium capitalize">
+                        {analysisResult.category}
+                      </p>
                     </div>
                     <div className="p-3 bg-gray-900 rounded-lg">
                       <p className="text-xs text-gray-400">Mood</p>
-                      <p className="font-medium capitalize">{analysisResult.mood}</p>
+                      <p className="font-medium capitalize">
+                        {analysisResult.mood}
+                      </p>
                     </div>
                     <div className="p-3 bg-gray-900 rounded-lg">
                       <p className="text-xs text-gray-400">Viral Score</p>
@@ -652,7 +822,9 @@ export default function VideoEditorPage() {
                             style={{ width: `${analysisResult.viral_score}%` }}
                           />
                         </div>
-                        <span className="font-medium">{analysisResult.viral_score}%</span>
+                        <span className="font-medium">
+                          {analysisResult.viral_score}%
+                        </span>
                       </div>
                     </div>
                     <div className="p-3 bg-gray-900 rounded-lg">
@@ -667,17 +839,26 @@ export default function VideoEditorPage() {
                   <div className="space-y-3">
                     <h3 className="font-semibold">Key Moments</h3>
                     <div className="space-y-2">
-                      {analysisResult.key_moments.slice(0, 3).map((moment: any, index: number) => (
-                        <div key={index} className="p-3 bg-gray-900 rounded-lg">
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-sm font-medium">{moment.description}</span>
-                            <span className="px-2 py-1 text-xs text-blue-400 rounded bg-blue-500/20">
-                              {moment.start}s - {moment.end}s
-                            </span>
+                      {analysisResult.key_moments
+                        .slice(0, 3)
+                        .map((moment: any, index: number) => (
+                          <div
+                            key={index}
+                            className="p-3 bg-gray-900 rounded-lg"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="text-sm font-medium">
+                                {moment.description}
+                              </span>
+                              <span className="px-2 py-1 text-xs text-blue-400 rounded bg-blue-500/20">
+                                {moment.start}s - {moment.end}s
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400">
+                              {moment.reason}
+                            </p>
                           </div>
-                          <p className="text-xs text-gray-400">{moment.reason}</p>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   </div>
                 )}
@@ -690,14 +871,16 @@ export default function VideoEditorPage() {
                       Hashtags
                     </h3>
                     <div className="flex flex-wrap gap-2">
-                      {analysisResult.hashtags.map((tag: string, index: number) => (
-                        <span
-                          key={index}
-                          className="bg-gray-900 hover:bg-gray-800 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer"
-                        >
-                          {tag}
-                        </span>
-                      ))}
+                      {analysisResult.hashtags.map(
+                        (tag: string, index: number) => (
+                          <span
+                            key={index}
+                            className="bg-gray-900 hover:bg-gray-800 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer"
+                          >
+                            {tag}
+                          </span>
+                        )
+                      )}
                     </div>
                   </div>
                 )}
@@ -710,18 +893,29 @@ export default function VideoEditorPage() {
                       Copyright Risks
                     </h3>
                     <div className="space-y-2">
-                      {analysisResult.copyright_risks.map((risk: any, index: number) => (
-                        <div key={index} className="p-3 border rounded-lg bg-red-500/10 border-red-500/30">
-                          <div className="flex items-start justify-between mb-1">
-                            <span className="text-sm font-medium capitalize">{risk.type}</span>
-                            <span className="px-2 py-1 text-xs text-red-400 capitalize rounded bg-red-500/20">
-                              {risk.severity}
-                            </span>
+                      {analysisResult.copyright_risks.map(
+                        (risk: any, index: number) => (
+                          <div
+                            key={index}
+                            className="p-3 border rounded-lg bg-red-500/10 border-red-500/30"
+                          >
+                            <div className="flex items-start justify-between mb-1">
+                              <span className="text-sm font-medium capitalize">
+                                {risk.type}
+                              </span>
+                              <span className="px-2 py-1 text-xs text-red-400 capitalize rounded bg-red-500/20">
+                                {risk.severity}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-300">
+                              {risk.description}
+                            </p>
+                            <p className="mt-2 text-xs text-red-400">
+                              {risk.suggestion}
+                            </p>
                           </div>
-                          <p className="text-xs text-gray-300">{risk.description}</p>
-                          <p className="mt-2 text-xs text-red-400">{risk.suggestion}</p>
-                        </div>
-                      ))}
+                        )
+                      )}
                     </div>
                   </div>
                 )}
@@ -736,33 +930,41 @@ export default function VideoEditorPage() {
                 <Globe size={16} />
                 Platform Requirements
               </h3>
-              
+
               {platformSettings
-                .filter(p => p.platform === targetPlatform)
+                .filter((p) => p.platform === targetPlatform)
                 .map((platform) => (
                   <div key={platform.platform} className="space-y-3">
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">{getPlatformIcon(platform.platform)}</span>
+                      <span className="text-2xl">
+                        {getPlatformIcon(platform.platform)}
+                      </span>
                       <div>
                         <h4 className="font-medium">{platform.name}</h4>
-                        <p className="text-xs text-gray-400">Max duration: {platform.max_duration}s</p>
+                        <p className="text-xs text-gray-400">
+                          Max duration: {platform.max_duration}s
+                        </p>
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-2">
                       <div className="p-2 bg-gray-900 rounded">
                         <p className="text-xs text-gray-400">Aspect Ratio</p>
-                        <p className="text-sm">{platform.aspect_ratios.join(', ')}</p>
+                        <p className="text-sm">
+                          {platform.aspect_ratios.join(", ")}
+                        </p>
                       </div>
                       <div className="p-2 bg-gray-900 rounded">
                         <p className="text-xs text-gray-400">Max Size</p>
                         <p className="text-sm">{platform.max_size_mb}MB</p>
                       </div>
                     </div>
-                    
+
                     <div className="p-2 bg-gray-900 rounded">
                       <p className="text-xs text-gray-400">Copyright</p>
-                      <p className="text-sm capitalize">{platform.copyright_strictness}</p>
+                      <p className="text-sm capitalize">
+                        {platform.copyright_strictness}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -776,8 +978,22 @@ export default function VideoEditorPage() {
         <div className="flex flex-wrap items-center justify-between text-sm text-gray-400">
           <div className="flex items-center gap-4">
             <span>Total Jobs: {jobs.length}</span>
-            <span>Completed: {jobs.filter(j => j.status === 'completed').length}</span>
-            <span>Active: {jobs.filter(j => ['pending', 'downloading', 'analyzing', 'processing'].includes(j.status)).length}</span>
+            <span>
+              Completed: {jobs.filter((j) => j.status === "completed").length}
+            </span>
+            <span>
+              Active:{" "}
+              {
+                jobs.filter((j) =>
+                  [
+                    "pending",
+                    "downloading",
+                    "analyzing",
+                    "processing",
+                  ].includes(j.status)
+                ).length
+              }
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
@@ -786,5 +1002,5 @@ export default function VideoEditorPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
