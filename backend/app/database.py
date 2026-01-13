@@ -4,10 +4,9 @@ from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
 
 from sqlalchemy import MetaData, create_engine
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import QueuePool, StaticPool
 
 from app.core.config import settings
 
@@ -16,13 +15,23 @@ def _build_urls(raw_url: str) -> tuple[str, str]:
     """
     Build (sync_url, async_url) from a single DATABASE_URL.
     Supports:
+      - SQLite: sqlite:// <-> sqlite+aiosqlite://
       - Postgres: psycopg2 <-> asyncpg
       - MySQL: pymysql <-> aiomysql
-    Accepts raw_url being either sync or async; derives the other.
     """
     url = (raw_url or "").strip()
     if not url:
         raise ValueError("DATABASE_URL is empty")
+
+    # --- SQLite ---
+    if url.startswith("sqlite:///"):
+        # SQLite doesn't need async driver for simple use
+        async_url = url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+        return url, async_url
+    
+    if url.startswith("sqlite+aiosqlite:///"):
+        sync_url = url.replace("sqlite+aiosqlite:///", "sqlite:///", 1)
+        return sync_url, url
 
     # --- Postgres ---
     if url.startswith("postgresql+asyncpg://"):
@@ -34,7 +43,6 @@ def _build_urls(raw_url: str) -> tuple[str, str]:
         return url, async_url
 
     if url.startswith("postgresql://"):
-        # Default sync for create_engine, derive explicit async form
         async_url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         return url, async_url
 
@@ -56,21 +64,34 @@ def _build_urls(raw_url: str) -> tuple[str, str]:
     return url, url
 
 
+# Determine if SQLite
+IS_SQLITE = settings.DATABASE_URL.startswith("sqlite")
+
 SYNC_DATABASE_URL, ASYNC_DATABASE_URL = _build_urls(settings.DATABASE_URL)
 
 # --------------------
 # Sync (default) DB
 # --------------------
-engine = create_engine(
-    SYNC_DATABASE_URL,
-    poolclass=QueuePool,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    echo=bool(getattr(settings, "DEBUG", False)),
-    future=True,
-)
+if IS_SQLITE:
+    # SQLite needs special handling
+    engine = create_engine(
+        SYNC_DATABASE_URL,
+        poolclass=StaticPool,  # SQLite needs StaticPool
+        connect_args={"check_same_thread": False},
+        echo=bool(getattr(settings, "DEBUG", False)),
+        future=True,
+    )
+else:
+    engine = create_engine(
+        SYNC_DATABASE_URL,
+        poolclass=QueuePool,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+        echo=bool(getattr(settings, "DEBUG", False)),
+        future=True,
+    )
 
 SessionLocal = sessionmaker(
     autocommit=False,
@@ -105,26 +126,46 @@ def db_session() -> Generator[Session, None, None]:
 
 
 # --------------------
-# Async DB (optional)
+# Async DB (optional - only if aiosqlite/asyncpg installed)
 # --------------------
-async_engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    echo=bool(getattr(settings, "DEBUG", False)),
-    future=True,
-)
+async_engine = None
+AsyncSessionLocal = None
 
-AsyncSessionLocal = async_sessionmaker(
-    async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+try:
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+    
+    if IS_SQLITE:
+        async_engine = create_async_engine(
+            ASYNC_DATABASE_URL,
+            echo=bool(getattr(settings, "DEBUG", False)),
+            future=True,
+        )
+    else:
+        async_engine = create_async_engine(
+            ASYNC_DATABASE_URL,
+            pool_size=10,
+            max_overflow=20,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+            echo=bool(getattr(settings, "DEBUG", False)),
+            future=True,
+        )
+
+    AsyncSessionLocal = async_sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+except ImportError:
+    # Async drivers not installed, skip async engine
+    pass
 
 
-async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_db():
+    """Get async database session (if available)."""
+    if AsyncSessionLocal is None:
+        raise RuntimeError("Async database not configured. Install aiosqlite or asyncpg.")
+    
     async with AsyncSessionLocal() as session:
         try:
             yield session

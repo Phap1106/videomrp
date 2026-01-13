@@ -179,3 +179,98 @@
 [data-radix-popper-content-wrapper] {
   z-index: 9999 !important;
 }
+
+/* ===== App Control - Unified input styling ===== */
+@layer components {
+  .app-control {
+    @apply w-full px-4 py-3 text-gray-200 bg-gray-900/65 border border-white/10 rounded-xl;
+    @apply transition-all duration-200;
+    @apply focus:outline-none focus:border-purple-500/90 focus:ring-2 focus:ring-purple-500/25 focus:bg-gray-900/85;
+  }
+
+  .app-btn-primary {
+    @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold;
+    @apply bg-gradient-to-r from-purple-600 to-pink-600 text-white;
+    @apply hover:from-purple-500 hover:to-pink-500;
+    @apply shadow-lg shadow-purple-500/30;
+    @apply transition-all duration-200;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none;
+  }
+
+  .app-btn-secondary {
+    @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold;
+    @apply bg-white/5 text-gray-300 border border-white/10;
+    @apply hover:bg-white/10 hover:text-white;
+    @apply transition-all duration-200;
+  }
+
+  .app-card {
+    @apply p-6 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm;
+  }
+
+  .app-section-title {
+    @apply flex items-center gap-2 mb-6 text-xl font-semibold text-white;
+  }
+}
+
+/* ===== Scrollbar thin variant ===== */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.5);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.7);
+}
+
+/* ===== Additional animations ===== */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(139, 92, 246, 0.6);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* ===== Glassmorphism effects ===== */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-dark {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+

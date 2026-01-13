@@ -87,10 +87,25 @@ class Settings(BaseSettings):
     DEEPGRAM_API_KEY: Optional[str] = Field(default=None, env="DEEPGRAM_API_KEY")
 
     # ==================== TTS SETTINGS ====================
-    TTS_PROVIDER: str = Field(default="openai", env="TTS_PROVIDER")  # openai, google, elevenlabs
+    TTS_PROVIDER: str = Field(default="edge", env="TTS_PROVIDER")  # edge, openai, google, elevenlabs, viettel, fpt, gtts
     TTS_VOICE_GENDER: str = Field(default="female", env="TTS_VOICE_GENDER")  # male, female, neutral
     TTS_SPEAKING_RATE: float = Field(default=1.0, env="TTS_SPEAKING_RATE")
     TTS_PITCH: float = Field(default=0.0, env="TTS_PITCH")
+    
+    # ElevenLabs (Free tier: 10,000 chars/month)
+    ELEVENLABS_API_KEY: Optional[str] = Field(default=None, env="ELEVENLABS_API_KEY")
+    ELEVENLABS_VOICE_ID: str = Field(default="21m00Tcm4TlvDq8ikWAM", env="ELEVENLABS_VOICE_ID")  # Rachel - English
+    
+    # ViettelAI TTS (Free tier available)
+    VIETTEL_API_KEY: Optional[str] = Field(default=None, env="VIETTEL_API_KEY")
+    VIETTEL_TTS_VOICE: str = Field(default="hn-quynhanh", env="VIETTEL_TTS_VOICE")  # Vietnamese voices
+    
+    # FPT.AI TTS (Free 50,000 chars/month)
+    FPT_API_KEY: Optional[str] = Field(default=None, env="FPT_API_KEY")
+    FPT_TTS_VOICE: str = Field(default="banmai", env="FPT_TTS_VOICE")  # Vietnamese voices
+    
+    # Edge TTS (FREE - no API key needed)
+    EDGE_TTS_VOICE: str = Field(default="vi-VN-HoaiMyNeural", env="EDGE_TTS_VOICE")  # Vietnamese Neural voice
 
     # ==================== VIDEO PROCESSING ====================
     FFMPEG_PATH: str = Field(default="ffmpeg", env="FFMPEG_PATH")

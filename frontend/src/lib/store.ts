@@ -14,19 +14,19 @@ interface ProcessingJob {
 interface VideoProcessingOptions {
   targetPlatform: 'tiktok' | 'youtube' | 'facebook' | 'instagram' | 'douyin' | 'twitter';
   videoType: 'short' | 'highlight' | 'viral' | 'meme' | 'full' | 'reel';
-  duration:  number;
+  duration: number;
   addSubtitles: boolean;
   addAiNarration: boolean;
   addTextOverlay: boolean;
   removeWatermark: boolean;
   aiProvider: 'openai' | 'gemini' | 'auto';
   ttsVoice?: string;
-  narrationStyle:  'professional' | 'casual' | 'dramatic';
+  narrationStyle: 'professional' | 'casual' | 'dramatic';
   processingFlow: 'auto' | 'fast' | 'ai' | 'full' | 'custom';
 }
 
 interface TextOverlayStyle {
-  fontFamily:  string;
+  fontFamily: string;
   fontSize: number;
   fontColor: string;
   bold: boolean;
@@ -35,7 +35,7 @@ interface TextOverlayStyle {
   bgAlpha: number;
   position: 'top' | 'center' | 'bottom';
   borderWidth: number;
-  borderColor:  string;
+  borderColor: string;
   shadow: boolean;
 }
 
@@ -43,7 +43,7 @@ interface AppStore {
   // Jobs
   jobs: ProcessingJob[];
   addJob: (job: ProcessingJob) => void;
-  updateJob: (id: string, updates:  Partial<ProcessingJob>) => void;
+  updateJob: (id: string, updates: Partial<ProcessingJob>) => void;
   removeJob: (id: string) => void;
   clearJobs: () => void;
 
@@ -52,7 +52,7 @@ interface AppStore {
   setCurrentVideoUrl: (url: string) => void;
 
   currentOptions: VideoProcessingOptions;
-  setCurrentOptions: (options:  Partial<VideoProcessingOptions>) => void;
+  setCurrentOptions: (options: Partial<VideoProcessingOptions>) => void;
 
   currentTextOverlayStyle: TextOverlayStyle;
   setCurrentTextOverlayStyle: (style: Partial<TextOverlayStyle>) => void;
@@ -75,7 +75,19 @@ interface AppStore {
   setShowTextEditor: (show: boolean) => void;
 
   showVideoPreview: boolean;
-  setShowVideoPreview: (show:  boolean) => void;
+  setShowVideoPreview: (show: boolean) => void;
+
+  // Current job tracking
+  currentJobId: string | null;
+  setCurrentJobId: (id: string | null) => void;
+
+  // Output video URL for preview
+  outputVideoUrl: string | null;
+  setOutputVideoUrl: (url: string | null) => void;
+
+  // EOA Chatbot session
+  eoaSessionId: string | null;
+  setEoaSessionId: (id: string | null) => void;
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -83,11 +95,11 @@ export const useAppStore = create<AppStore>((set) => ({
   addJob: (job) => set((state) => ({ jobs: [...state.jobs, job] })),
   updateJob: (id, updates) =>
     set((state) => ({
-      jobs: state.jobs. map((j) => (j.id === id ? { ...j, ...updates } : j)),
+      jobs: state.jobs.map((j) => (j.id === id ? { ...j, ...updates } : j)),
     })),
   removeJob: (id) =>
     set((state) => ({
-      jobs: state.jobs. filter((j) => j.id !== id),
+      jobs: state.jobs.filter((j) => j.id !== id),
     })),
   clearJobs: () => set({ jobs: [] }),
 
@@ -101,7 +113,7 @@ export const useAppStore = create<AppStore>((set) => ({
     addSubtitles: true,
     addAiNarration: true,
     addTextOverlay: false,
-    removeWatermark:  true,
+    removeWatermark: true,
     aiProvider: 'auto',
     narrationStyle: 'professional',
     processingFlow: 'auto',
@@ -130,7 +142,7 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
 
   selectedTab: 'reup',
-  setSelectedTab: (tab) => set({ selectedTab:  tab }),
+  setSelectedTab: (tab) => set({ selectedTab: tab }),
 
   isProcessing: false,
   setIsProcessing: (processing) => set({ isProcessing: processing }),
@@ -139,11 +151,23 @@ export const useAppStore = create<AppStore>((set) => ({
   setSelectedVoice: (voice) => set({ selectedVoice: voice }),
 
   showVoicePreview: false,
-  setShowVoicePreview:  (show) => set({ showVoicePreview: show }),
+  setShowVoicePreview: (show) => set({ showVoicePreview: show }),
 
   showTextEditor: false,
-  setShowTextEditor: (show) => set({ showTextEditor:  show }),
+  setShowTextEditor: (show) => set({ showTextEditor: show }),
 
   showVideoPreview: false,
   setShowVideoPreview: (show) => set({ showVideoPreview: show }),
+
+  // Current job tracking
+  currentJobId: null,
+  setCurrentJobId: (id) => set({ currentJobId: id }),
+
+  // Output video URL for preview
+  outputVideoUrl: null,
+  setOutputVideoUrl: (url) => set({ outputVideoUrl: url }),
+
+  // EOA Chatbot
+  eoaSessionId: null,
+  setEoaSessionId: (id) => set({ eoaSessionId: id }),
 }));

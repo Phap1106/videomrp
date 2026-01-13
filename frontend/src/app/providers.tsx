@@ -60,6 +60,7 @@ interface VideoJob {
   completed_at?: string;
   output_filename?: string;
   error_message?: string;
+  processing_flow?: string;
 }
 
 interface AnalysisResult {
@@ -492,11 +493,10 @@ export default function VideoEditorPage() {
                     <button
                       key={platform.platform}
                       onClick={() => setTargetPlatform(platform.platform)}
-                      className={`p-3 rounded-lg flex flex-col items-center justify-center gap-2 transition-all ${
-                        targetPlatform === platform.platform
-                          ? "bg-blue-500/20 border border-blue-500"
-                          : "bg-gray-900 hover:bg-gray-800"
-                      }`}
+                      className={`p-3 rounded-lg flex flex-col items-center justify-center gap-2 transition-all ${targetPlatform === platform.platform
+                        ? "bg-blue-500/20 border border-blue-500"
+                        : "bg-gray-900 hover:bg-gray-800"
+                        }`}
                     >
                       <span className="text-2xl">
                         {getPlatformIcon(platform.platform)}
@@ -527,11 +527,10 @@ export default function VideoEditorPage() {
                     <button
                       key={type}
                       onClick={() => setVideoType(type)}
-                      className={`p-3 rounded-lg text-center transition-all ${
-                        videoType === type
-                          ? "bg-purple-500/20 border border-purple-500"
-                          : "bg-gray-900 hover:bg-gray-800"
-                      }`}
+                      className={`p-3 rounded-lg text-center transition-all ${videoType === type
+                        ? "bg-purple-500/20 border border-purple-500"
+                        : "bg-gray-900 hover:bg-gray-800"
+                        }`}
                     >
                       <span className="text-sm capitalize">{type}</span>
                     </button>
@@ -606,14 +605,12 @@ export default function VideoEditorPage() {
                           className="sr-only"
                         />
                         <div
-                          className={`w-10 h-6 rounded-full transition-colors ${
-                            option.checked ? "bg-blue-500" : "bg-gray-700"
-                          }`}
+                          className={`w-10 h-6 rounded-full transition-colors ${option.checked ? "bg-blue-500" : "bg-gray-700"
+                            }`}
                         >
                           <div
-                            className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                              option.checked ? "translate-x-5" : "translate-x-1"
-                            }`}
+                            className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${option.checked ? "translate-x-5" : "translate-x-1"
+                              }`}
                           />
                         </div>
                       </div>
@@ -657,11 +654,10 @@ export default function VideoEditorPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
-                    activeTab === tab.id
-                      ? "text-blue-400 border-b-2 border-blue-400"
-                      : "text-gray-400 hover:text-white"
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${activeTab === tab.id
+                    ? "text-blue-400 border-b-2 border-blue-400"
+                    : "text-gray-400 hover:text-white"
+                    }`}
                 >
                   <tab.icon size={16} />
                   {tab.label}
@@ -684,11 +680,10 @@ export default function VideoEditorPage() {
                       <div
                         key={job.id}
                         onClick={() => setSelectedJob(job)}
-                        className={`p-4 rounded-lg cursor-pointer transition-all ${
-                          selectedJob?.id === job.id
-                            ? "bg-blue-500/10 border border-blue-500/30"
-                            : "bg-gray-900 hover:bg-gray-800"
-                        }`}
+                        className={`p-4 rounded-lg cursor-pointer transition-all ${selectedJob?.id === job.id
+                          ? "bg-blue-500/10 border border-blue-500/30"
+                          : "bg-gray-900 hover:bg-gray-800"
+                          }`}
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
@@ -756,7 +751,8 @@ export default function VideoEditorPage() {
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 try {
-                                  const logs = await api.getJobLogs(job.id);
+                                  const response = await fetch(`/api/jobs/${job.id}/logs`);
+                                  const logs = await response.json();
                                   const msgs = (logs || [])
                                     .map(
                                       (l: any) =>

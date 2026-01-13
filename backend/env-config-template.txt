@@ -1,0 +1,120 @@
+# ==========================================
+# VIDEO FACTORY AI - ENVIRONMENT CONFIGURATION
+# ==========================================
+# Copy this file to .env and fill in your API keys
+
+# ==================== APPLICATION ====================
+APP_NAME=Video Factory AI
+APP_ENV=development
+DEBUG=true
+SECRET_KEY=your-secret-key-change-in-production
+
+# ==================== SERVER ====================
+HOST=0.0.0.0
+PORT=8000
+WORKERS=4
+
+# ==================== DATABASE ====================
+# SQLite (default, for development)
+DATABASE_URL=sqlite:///./video_tool.db
+
+# MySQL (for production)
+# DATABASE_URL=mysql+pymysql://user:password@localhost/video_factory
+
+# ==================== REDIS ====================
+REDIS_URL=redis://localhost:6379/0
+
+# ==================== AI PROVIDERS (Choose one or more) ====================
+
+# OpenAI (For GPT, TTS, Whisper)
+# Get key: https://platform.openai.com/api-keys
+OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_TTS_VOICE=nova
+
+# Google Gemini (Alternative AI)
+# Get key: https://makersuite.google.com/app/apikey
+GOOGLE_API_KEY=your-google-api-key
+GOOGLE_PROJECT_ID=
+
+# Groq (Fast inference, OpenAI-compatible)
+# Get key: https://console.groq.com/keys
+GROQ_API_KEY=your-groq-api-key
+
+# ==================== TTS PROVIDERS ====================
+# Available: edge, openai, google, elevenlabs, viettel, fpt, gtts, mock
+# Default is "edge" - FREE, no API key required
+TTS_PROVIDER=edge
+
+# --- EDGE TTS (FREE - NO API KEY NEEDED) ---
+# Best free option with high quality Vietnamese voices
+# Voice list: https://gist.github.com/BettyJJ/17cbaa1de96235a7f5773b8c50bbf8b3
+EDGE_TTS_VOICE=vi-VN-HoaiMyNeural
+# Vietnamese voices:
+#   - vi-VN-HoaiMyNeural (Female)
+#   - vi-VN-NamMinhNeural (Male)
+# English voices:
+#   - en-US-JennyNeural (Female)
+#   - en-US-GuyNeural (Male)
+
+# --- ELEVENLABS (Free tier: 10,000 chars/month) ---
+# Get key: https://elevenlabs.io/
+ELEVENLABS_API_KEY=your-elevenlabs-api-key
+ELEVENLABS_VOICE_ID=21m00Tcm4TlvDq8ikWAM
+
+# --- VIETTEL AI TTS (Vietnamese voices) ---
+# Get key: https://viettelai.vn/
+VIETTEL_API_KEY=your-viettel-api-key
+VIETTEL_TTS_VOICE=hn-quynhanh
+# Voices: hn-quynhanh, hn-thanhtung, sg-linhsan, sg-phuongly, hue-maianh
+
+# --- FPT.AI TTS (Free 50,000 chars/month) ---
+# Get key: https://fpt.ai/
+FPT_API_KEY=your-fpt-api-key
+FPT_TTS_VOICE=banmai
+# Voices: banmai, leminh, thuminh, giahuy, lannhi, myan, linhsan
+
+# --- GOOGLE TTS (gTTS - FREE but lower quality) ---
+# No API key needed, uses gTTS library
+
+# ==================== SPEECH RECOGNITION ====================
+
+# Deepgram (For transcription)
+# Get key: https://console.deepgram.com/
+DEEPGRAM_API_KEY=your-deepgram-api-key
+
+# Whisper Model (local, requires GPU for large models)
+WHISPER_MODEL=base
+
+# ==================== VIDEO PROCESSING ====================
+FFMPEG_PATH=ffmpeg
+FFPROBE_PATH=ffprobe
+VIDEO_CODEC=libx264
+VIDEO_PRESET=fast
+VIDEO_BITRATE=5000k
+AUDIO_BITRATE=192k
+
+# ==================== TEXT OVERLAY ====================
+DEFAULT_FONT_FILE=data/fonts/Arial.ttf
+DEFAULT_FONT_SIZE=60
+DEFAULT_FONT_COLOR=FFFFFF
+DEFAULT_TEXT_POSITION=bottom
+
+# ==================== PROCESSING ====================
+MAX_UPLOAD_SIZE=2000
+MAX_VIDEO_DURATION=3600
+MAX_CONCURRENT_JOBS=5
+JOB_TIMEOUT=7200
+
+# ==================== SUBTITLE ====================
+SUBTITLE_LANGUAGE=vi
+SUBTITLE_FORMAT=srt
+
+# ==================== FEATURE FLAGS ====================
+ENABLE_TTS=true
+ENABLE_TRANSCRIPTION=true
+ENABLE_STORY_GENERATION=true
+ENABLE_TEXT_OVERLAY=true
+
+# ==================== CORS ====================
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000

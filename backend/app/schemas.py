@@ -180,3 +180,81 @@ class StoryGenerationResult(BaseModel):
     segments: List[dict]
     style: str
     estimated_duration: Optional[int]
+
+
+# ==================== EOA CHATBOT SCHEMAS ====================
+
+class ChatMessage(BaseModel):
+    """Single chat message"""
+    role: str  # "user" | "assistant" | "system"
+    content: str
+    timestamp: Optional[datetime] = None
+    metadata: Optional[dict] = None
+
+
+class EOAChatRequest(BaseModel):
+    """Request to chat with EOA AI"""
+    message: str
+    conversation_history: List[ChatMessage] = []
+    session_id: Optional[str] = None
+    ai_provider: Optional[str] = "auto"
+
+
+class EOAChatResponse(BaseModel):
+    """Response from EOA AI"""
+    success: bool
+    message: str
+    suggestions: Optional[List[str]] = None
+    collected_info: Optional[dict] = None
+    ready_to_process: bool = False
+    action_required: Optional[str] = None  # None | "confirm" | "process"
+
+
+class EOAProcessRequest(BaseModel):
+    """Request to process story and generate audio"""
+    session_id: str
+    conversation_history: List[ChatMessage]
+    story_config: Optional[dict] = None  # Override AI-collected config
+    voice: Optional[str] = None
+    speed: float = 1.0
+    add_pauses: bool = True
+    ai_provider: Optional[str] = "auto"
+
+
+class EOAProcessResponse(BaseModel):
+    """Response after processing story to audio"""
+    success: bool
+    story_text: str
+    audio_path: Optional[str] = None
+    audio_url: Optional[str] = None
+    duration: Optional[float] = None
+    word_count: int = 0
+    error: Optional[str] = None
+
+
+# ==================== SPLIT SCREEN & ASPECT RATIO SCHEMAS ====================
+
+class AspectRatioConvertRequest(BaseModel):
+    """Request to convert video aspect ratio"""
+    source_url: str
+    target_ratio: str = "9:16"  # 9:16, 16:9, 1:1, 4:5
+    method: str = "pad"  # pad, crop, fit
+    background_color: str = "000000"
+
+
+class SplitScreenMergeRequest(BaseModel):
+    """Request to merge two videos side by side"""
+    video1_url: str
+    video2_url: str
+    split_ratio: str = "1:1"  # 1:1, 2:1, 1:2
+    output_ratio: str = "9:16"
+    audio_source: str = "both"  # video1, video2, both, none
+
+
+class HighlightExtractionRequest(BaseModel):
+    """Request to extract highlights from long video"""
+    source_url: str
+    target_duration: int = 60  # Target output duration in seconds
+    num_highlights: int = 5
+    style: str = "engaging"  # engaging, informative, dramatic
+    ai_provider: Optional[str] = "auto"
