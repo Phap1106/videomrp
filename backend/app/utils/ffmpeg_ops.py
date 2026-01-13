@@ -421,6 +421,358 @@ class FFmpegOps:
             logger. error(f"Video conversion error: {e}")
             raise
 
+    async def mute_video(
+        self,
+        video_path: Path,
+        output_path: Path,
+    ) -> Path:
+        """Mute video audio completely"""
+        try:
+            logger.info(f"Muting audio in {video_path}")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video_path),
+                "-c:v", "copy",
+                "-an",  # Remove audio stream
+                "-y",
+                str(output_path),
+            ]
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Mute video failed: {stderr}")
+
+            logger.info(f"Video muted, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Mute video error: {e}")
+            raise
+
+    async def convert_aspect_ratio(
+        self,
+        video_path: Path,
+        target_ratio: str,
+        output_path: Path,
+        method: str = "pad",  # pad, crop, fit
+        bg_color: str = "black",
+    ) -> Path:
+        """
+        Convert video to target aspect ratio
+        
+        Supported ratios: 9:16, 16:9, 1:1, 4:5, 4:3
+        Methods:
+        - pad: Add black bars to maintain content
+        - crop: Crop video to fill target ratio
+        - fit: Scale video to fit within target ratio
+        """
+        try:
+            logger.info(f"Converting aspect ratio to {target_ratio} using {method}")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Get source video info
+            video_info = await self.get_video_info(video_path)
+            src_width = video_info["width"]
+            src_height = video_info["height"]
+
+            # Parse target ratio
+            ratio_map = {
+                "9:16": (1080, 1920),   # TikTok, Shorts, Reels
+                "16:9": (1920, 1080),   # YouTube landscape
+                "1:1": (1080, 1080),     # Instagram square
+                "4:5": (1080, 1350),     # Instagram portrait
+                "4:3": (1440, 1080),     # Traditional TV
+            }
+
+            if target_ratio not in ratio_map:
+                raise FFmpegError(f"Unsupported aspect ratio: {target_ratio}")
+
+            target_width, target_height = ratio_map[target_ratio]
+
+            # Build filter based on method
+            if method == "pad":
+                # Scale to fit within target, then pad
+                filter_complex = (
+                    f"scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,"
+                    f"pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:color={bg_color}"
+                )
+            elif method == "crop":
+                # Scale to cover target, then crop
+                filter_complex = (
+                    f"scale={target_width}:{target_height}:force_original_aspect_ratio=increase,"
+                    f"crop={target_width}:{target_height}"
+                )
+            else:  # fit
+                # Just scale to fit
+                filter_complex = f"scale={target_width}:{target_height}:force_original_aspect_ratio=decrease"
+
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video_path),
+                "-vf", filter_complex,
+                "-c:v", settings.VIDEO_CODEC,
+                "-preset", settings.VIDEO_PRESET,
+                "-c:a", "aac",
+                "-y",
+                str(output_path),
+            ]
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Aspect ratio conversion failed: {stderr}")
+
+            logger.info(f"Aspect ratio converted, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Aspect ratio conversion error: {e}")
+            raise
+
+    async def merge_split_screen(
+        self,
+        video1_path: Path,
+        video2_path: Path,
+        output_path: Path,
+        layout: str = "horizontal",  # horizontal, vertical
+        ratio: str = "1:1",  # 1:1, 2:1, 1:2
+        output_width: int = 1080,
+        output_height: int = 1920,
+        audio_source: str = "both",  # video1, video2, both, none
+    ) -> Path:
+        """
+        Merge two videos into split screen
+        
+        Layout:
+        - horizontal: Side by side (left-right)
+        - vertical: Top-bottom
+        
+        Ratio options for horizontal: 1:1 (50-50), 2:1 (66-33), 1:2 (33-66)
+        """
+        try:
+            logger.info(f"Merging videos with {layout} layout, ratio {ratio}")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Parse ratio
+            ratio_parts = ratio.split(":")
+            ratio_left = int(ratio_parts[0])
+            ratio_right = int(ratio_parts[1])
+            total_ratio = ratio_left + ratio_right
+
+            if layout == "horizontal":
+                # Calculate widths based on ratio
+                width1 = int(output_width * ratio_left / total_ratio)
+                width2 = output_width - width1
+                height1 = height2 = output_height
+
+                # Scale and crop both videos, then hstack
+                filter_complex = (
+                    f"[0:v]scale={width1}:{height1}:force_original_aspect_ratio=increase,"
+                    f"crop={width1}:{height1}[v0];"
+                    f"[1:v]scale={width2}:{height2}:force_original_aspect_ratio=increase,"
+                    f"crop={width2}:{height2}[v1];"
+                    f"[v0][v1]hstack=inputs=2[outv]"
+                )
+            else:  # vertical
+                # Calculate heights based on ratio
+                height1 = int(output_height * ratio_left / total_ratio)
+                height2 = output_height - height1
+                width1 = width2 = output_width
+
+                filter_complex = (
+                    f"[0:v]scale={width1}:{height1}:force_original_aspect_ratio=increase,"
+                    f"crop={width1}:{height1}[v0];"
+                    f"[1:v]scale={width2}:{height2}:force_original_aspect_ratio=increase,"
+                    f"crop={width2}:{height2}[v1];"
+                    f"[v0][v1]vstack=inputs=2[outv]"
+                )
+
+            # Audio handling
+            audio_filter = ""
+            audio_mapping = []
+            
+            if audio_source == "video1":
+                audio_mapping = ["-map", "0:a?"]
+            elif audio_source == "video2":
+                audio_mapping = ["-map", "1:a?"]
+            elif audio_source == "both":
+                # Mix both audio tracks
+                filter_complex += ";[0:a][1:a]amix=inputs=2:duration=shortest[outa]"
+                audio_mapping = ["-map", "[outa]"]
+            # else: no audio
+
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video1_path),
+                "-i", str(video2_path),
+                "-filter_complex", filter_complex,
+                "-map", "[outv]",
+            ] + audio_mapping + [
+                "-c:v", settings.VIDEO_CODEC,
+                "-preset", settings.VIDEO_PRESET,
+                "-c:a", "aac",
+                "-shortest",
+                "-y",
+                str(output_path),
+            ]
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Split screen merge failed: {stderr}")
+
+            logger.info(f"Split screen merged, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Split screen merge error: {e}")
+            raise
+
+    async def extract_segments(
+        self,
+        video_path: Path,
+        segments: list[dict],  # [{"start": 0, "end": 10}, {"start": 30, "end": 45}]
+        output_dir: Path,
+    ) -> list[Path]:
+        """Extract multiple segments from video"""
+        try:
+            logger.info(f"Extracting {len(segments)} segments from video")
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            output_paths = []
+            for i, seg in enumerate(segments):
+                start = seg.get("start", 0)
+                end = seg.get("end", start + 10)
+                
+                output_path = output_dir / f"segment_{i:03d}.mp4"
+                await self.cut_video(video_path, start, end, output_path)
+                output_paths.append(output_path)
+
+            logger.info(f"Extracted {len(output_paths)} segments")
+            return output_paths
+
+        except Exception as e:
+            logger.error(f"Segment extraction error: {e}")
+            raise
+
+    async def add_watermark(
+        self,
+        video_path: Path,
+        watermark_path: Path,
+        output_path: Path,
+        position: str = "bottom_right",  # top_left, top_right, bottom_left, bottom_right, center
+        opacity: float = 0.7,
+        scale: float = 0.15,  # Scale relative to video width
+    ) -> Path:
+        """Add image watermark to video"""
+        try:
+            logger.info(f"Adding watermark to video")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            video_info = await self.get_video_info(video_path)
+            video_width = video_info["width"]
+            video_height = video_info["height"]
+
+            wm_width = int(video_width * scale)
+            padding = 20
+
+            # Position mapping
+            pos_map = {
+                "top_left": f"x={padding}:y={padding}",
+                "top_right": f"x=W-w-{padding}:y={padding}",
+                "bottom_left": f"x={padding}:y=H-h-{padding}",
+                "bottom_right": f"x=W-w-{padding}:y=H-h-{padding}",
+                "center": "x=(W-w)/2:y=(H-h)/2",
+            }
+
+            pos = pos_map.get(position, pos_map["bottom_right"])
+
+            filter_complex = (
+                f"[1:v]scale={wm_width}:-1,format=rgba,colorchannelmixer=aa={opacity}[wm];"
+                f"[0:v][wm]overlay={pos}"
+            )
+
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video_path),
+                "-i", str(watermark_path),
+                "-filter_complex", filter_complex,
+                "-c:v", settings.VIDEO_CODEC,
+                "-preset", settings.VIDEO_PRESET,
+                "-c:a", "copy",
+                "-y",
+                str(output_path),
+            ]
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Watermark failed: {stderr}")
+
+            logger.info(f"Watermark added, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Watermark error: {e}")
+            raise
+
+    async def adjust_speed(
+        self,
+        video_path: Path,
+        output_path: Path,
+        speed: float = 1.0,  # 0.5 = slow, 2.0 = fast
+    ) -> Path:
+        """Adjust video and audio speed"""
+        try:
+            logger.info(f"Adjusting video speed to {speed}x")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if speed <= 0 or speed > 4:
+                raise FFmpegError("Speed must be between 0.1 and 4.0")
+
+            # Video speed adjustment
+            video_filter = f"setpts={1/speed}*PTS"
+            
+            # Audio speed adjustment
+            audio_filter = f"atempo={speed}" if 0.5 <= speed <= 2.0 else None
+            
+            # For speeds outside atempo range, we need to chain multiple atempo
+            if speed > 2.0:
+                audio_filter = f"atempo=2.0,atempo={speed/2.0}"
+            elif speed < 0.5:
+                audio_filter = f"atempo=0.5,atempo={speed/0.5}"
+
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(video_path),
+                "-filter:v", video_filter,
+            ]
+            
+            if audio_filter:
+                cmd.extend(["-filter:a", audio_filter])
+
+            cmd.extend([
+                "-c:v", settings.VIDEO_CODEC,
+                "-preset", settings.VIDEO_PRESET,
+                "-y",
+                str(output_path),
+            ])
+
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                raise FFmpegError(f"Speed adjustment failed: {stderr}")
+
+            logger.info(f"Speed adjusted, output: {output_path}")
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Speed adjustment error: {e}")
+            raise
+
 
 # Global instance
 ffmpeg_ops = FFmpegOps()

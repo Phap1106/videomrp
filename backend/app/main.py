@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.logger import logger
 from sqlalchemy import text
 
-from app.api.endpoints import api_router
+from app.api import api_router
 from app.core.config import settings
 from app.core.logger import setup_logging
 from app.database import Base, SessionLocal, engine

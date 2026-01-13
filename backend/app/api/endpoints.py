@@ -25,6 +25,11 @@ from app.schemas import (
     HealthResponse,
     VoiceOption,
     ProcessingFlowOption,
+    EOAChatRequest,
+    EOAChatResponse,
+    EOAProcessRequest,
+    EOAProcessResponse,
+    ChatMessage,
 )
 from app.services.ai. tts_provider import get_tts_provider
 from app.services.ai.transcription_service import get_transcription_provider
@@ -152,33 +157,446 @@ async def get_processing_flows() -> list[ProcessingFlowOption]:
     ]
 
 
+# ==================== EOA CHATBOT ENDPOINTS ====================
+
+@router.post("/eoa/chat")
+async def eoa_chat(request: EOAChatRequest) -> EOAChatResponse:
+    """Chat with EOA AI assistant"""
+    try:
+        from app.services.ai.eoa_chatbot import eoa_chatbot
+        
+        # Convert ChatMessage to dict
+        history = [
+            {"role": msg.role, "content": msg.content}
+            for msg in request.conversation_history
+        ]
+        
+        result = await eoa_chatbot.chat(
+            message=request.message,
+            session_id=request.session_id,
+            conversation_history=history,
+            ai_provider=request.ai_provider
+        )
+        
+        return EOAChatResponse(
+            success=result["success"],
+            message=result["message"],
+            suggestions=result.get("suggestions", []),
+            collected_info=result.get("collected_info", {}),
+            ready_to_process=result.get("ready_to_process", False),
+            action_required=result.get("action_required")
+        )
+    except Exception as e:
+        logger.error(f"EOA chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/eoa/process")
+async def eoa_process(request: EOAProcessRequest) -> EOAProcessResponse:
+    """Process collected info and generate audio"""
+    try:
+        from app.services.ai.eoa_chatbot import eoa_chatbot
+        
+        # Restore session if needed
+        history = [
+            {"role": msg.role, "content": msg.content}
+            for msg in request.conversation_history
+        ]
+        
+        # Ensure session exists with history
+        session_id = eoa_chatbot.get_or_create_session(request.session_id)
+        if history:
+            eoa_chatbot.sessions[session_id]["messages"] = history
+        if request.story_config:
+            eoa_chatbot.sessions[session_id]["collected_info"] = request.story_config
+        
+        result = await eoa_chatbot.process_and_generate(
+            session_id=session_id,
+            voice=request.voice,
+            speed=request.speed,
+            add_pauses=request.add_pauses,
+            ai_provider=request.ai_provider
+        )
+        
+        return EOAProcessResponse(
+            success=result["success"],
+            story_text=result.get("story_text", ""),
+            audio_path=result.get("audio_path"),
+            audio_url=result.get("audio_url"),
+            duration=result.get("duration"),
+            word_count=result.get("word_count", 0),
+            error=result.get("error")
+        )
+    except Exception as e:
+        logger.error(f"EOA process error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/eoa/download/{session_id}")
+async def eoa_download_audio(session_id: str):
+    """Download generated audio file"""
+    try:
+        audio_path = Path(settings.PROCESSED_DIR) / f"eoa_audio_{session_id}.mp3"
+        
+        if not audio_path.exists():
+            raise HTTPException(status_code=404, detail="Audio file not found")
+        
+        return FileResponse(
+            path=audio_path,
+            media_type="audio/mpeg",
+            filename=f"eoa_story_{session_id}.mp3",
+            headers={"Content-Disposition": f"attachment; filename=eoa_story_{session_id}.mp3"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"EOA download error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/eoa/session/{session_id}")
+async def eoa_clear_session(session_id: str):
+    """Clear EOA session"""
+    try:
+        from app.services.ai.eoa_chatbot import eoa_chatbot
+        eoa_chatbot.clear_session(session_id)
+        return {"success": True, "message": "Session cleared"}
+    except Exception as e:
+        logger.error(f"EOA clear session error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== SPLIT-SCREEN MERGE ENDPOINTS ====================
+
+@router.post("/videos/merge-split-screen")
+async def merge_split_screen(
+    video1_url: str = Query(..., description="URL of first video (left/top)"),
+    video2_url: str = Query(..., description="URL of second video (right/bottom)"),
+    layout: str = Query("horizontal", description="Layout: horizontal or vertical"),
+    ratio: str = Query("1:1", description="Split ratio: 1:1, 2:1, 1:2"),
+    output_ratio: str = Query("9:16", description="Output aspect ratio: 9:16, 16:9, 1:1"),
+    audio_source: str = Query("both", description="Audio source: video1, video2, both, none"),
+):
+    """Merge two videos into split screen"""
+    try:
+        from app.services.video_merger import video_merger
+        
+        result = await video_merger.merge_split_screen(
+            video1_url=video1_url,
+            video2_url=video2_url,
+            layout=layout,
+            ratio=ratio,
+            output_ratio=output_ratio,
+            audio_source=audio_source
+        )
+        
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Merge failed"))
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Split-screen merge error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/videos/merged/{job_id}")
+async def download_merged_video(job_id: str):
+    """Download merged video"""
+    try:
+        output_path = Path(settings.PROCESSED_DIR) / f"merged_{job_id}.mp4"
+        
+        if not output_path.exists():
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        return FileResponse(
+            path=output_path,
+            media_type="video/mp4",
+            filename=f"merged_{job_id}.mp4"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Download merged video error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== ASPECT RATIO CONVERSION ENDPOINTS ====================
+
+@router.post("/videos/convert-aspect-ratio")
+async def convert_aspect_ratio(
+    source_url: str = Query(..., description="Source video URL"),
+    target_ratio: str = Query("9:16", description="Target ratio: 9:16, 16:9, 1:1, 4:5, 4:3"),
+    method: str = Query("pad", description="Method: pad, crop, fit"),
+    bg_color: str = Query("000000", description="Background color (hex)"),
+):
+    """Convert video aspect ratio"""
+    try:
+        from app.services.aspect_ratio_converter import aspect_ratio_converter
+        
+        result = await aspect_ratio_converter.convert(
+            source_url=source_url,
+            target_ratio=target_ratio,
+            method=method,
+            bg_color=bg_color
+        )
+        
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Conversion failed"))
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Aspect ratio conversion error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/videos/convert-for-platform")
+async def convert_for_platform(
+    source_url: str = Query(..., description="Source video URL"),
+    platform: str = Query(..., description="Target platform: tiktok, youtube, instagram_reels, etc."),
+    method: str = Query("pad", description="Method: pad, crop, fit"),
+):
+    """Convert video to recommended aspect ratio for platform"""
+    try:
+        from app.services.aspect_ratio_converter import aspect_ratio_converter
+        
+        result = await aspect_ratio_converter.convert_for_platform(
+            source_url=source_url,
+            platform=platform,
+            method=method
+        )
+        
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Conversion failed"))
+        
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Platform conversion error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/videos/converted/{job_id}")
+async def download_converted_video(job_id: str):
+    """Download converted video"""
+    try:
+        output_path = Path(settings.PROCESSED_DIR) / f"converted_{job_id}.mp4"
+        
+        if not output_path.exists():
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        return FileResponse(
+            path=output_path,
+            media_type="video/mp4",
+            filename=f"converted_{job_id}.mp4"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Download converted video error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/aspect-ratios")
+async def get_aspect_ratios():
+    """Get available aspect ratios and platform recommendations"""
+    from app.services.aspect_ratio_converter import PLATFORM_RATIOS, RATIO_DIMENSIONS
+    
+    return {
+        "ratios": [
+            {"id": "9:16", "name": "Vertical (TikTok/Reels)", "width": 1080, "height": 1920},
+            {"id": "16:9", "name": "Landscape (YouTube)", "width": 1920, "height": 1080},
+            {"id": "1:1", "name": "Square (Instagram)", "width": 1080, "height": 1080},
+            {"id": "4:5", "name": "Portrait (Instagram)", "width": 1080, "height": 1350},
+            {"id": "4:3", "name": "Traditional (TV)", "width": 1440, "height": 1080},
+        ],
+        "platforms": PLATFORM_RATIOS,
+        "methods": [
+            {"id": "pad", "name": "Pad", "description": "Add black bars to maintain all content"},
+            {"id": "crop", "name": "Crop", "description": "Crop to fill target (may lose content)"},
+            {"id": "fit", "name": "Fit", "description": "Scale to fit within target"},
+        ]
+    }
+
+
+# ==================== HIGHLIGHT EXTRACTION ENDPOINTS ====================
+
+@router.post("/videos/extract-highlights")
+async def extract_highlights(
+    source_url: str = Query(..., description="Source video URL"),
+    target_duration: int = Query(60, description="Target highlight duration in seconds"),
+    num_highlights: int = Query(5, description="Number of highlight segments"),
+    style: str = Query("engaging", description="Style: engaging, informative, dramatic, funny"),
+    ai_provider: str = Query("auto", description="AI provider: auto, openai, gemini"),
+    background_tasks: BackgroundTasks = None
+):
+    """Extract highlights from long video"""
+    try:
+        from app.services.highlight_extractor import highlight_extractor
+        from app.services.video_downloader import VideoDownloader
+        from app.services.ai.transcription_service import get_transcription_provider
+        
+        job_id = str(uuid.uuid4())[:8]
+        temp_dir = Path(settings.TEMP_DIR) / f"highlight_{job_id}"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Download video
+        logger.info(f"Downloading video for highlight extraction...")
+        downloader = VideoDownloader()
+        video_path = await downloader.download(source_url, temp_dir)
+        
+        # Transcribe video
+        logger.info("Transcribing video...")
+        transcription_provider = await get_transcription_provider(ai_provider)
+        transcript_result = await transcription_provider.transcribe(video_path, language="vi")
+        
+        # Extract highlights
+        result = await highlight_extractor.extract_highlights(
+            video_path=video_path,
+            transcript_segments=transcript_result.get("segments", []),
+            target_duration=target_duration,
+            num_highlights=num_highlights,
+            style=style,
+            ai_provider=ai_provider
+        )
+        
+        # Cleanup temp video
+        try:
+            video_path.unlink()
+            temp_dir.rmdir()
+        except:
+            pass
+        
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Extraction failed"))
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Highlight extraction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/videos/highlights/{job_id}")
+async def download_highlights_video(job_id: str):
+    """Download highlights video"""
+    try:
+        output_path = Path(settings.PROCESSED_DIR) / f"highlights_{job_id}.mp4"
+        
+        if not output_path.exists():
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        return FileResponse(
+            path=output_path,
+            media_type="video/mp4",
+            filename=f"highlights_{job_id}.mp4"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Download highlights video error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ==================== TTS ENDPOINTS ====================
+
+@router.get("/tts/providers")
+async def get_tts_providers():
+    """Get all available TTS providers with configuration status"""
+    try:
+        from app.services.ai.tts_provider import get_all_providers_info, TTS_PROVIDERS
+        
+        providers = await get_all_providers_info()
+        
+        return {
+            "success": True,
+            "providers": providers,
+            "default_provider": settings.TTS_PROVIDER,
+            "total": len(providers)
+        }
+    except Exception as e:
+        logger.error(f"Get TTS providers error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tts/voices")
+async def get_tts_voices(provider: str = None):
+    """Get available voices from provider(s)"""
+    try:
+        from app.services.ai.tts_provider import get_all_voices, get_tts_provider
+        
+        if provider:
+            tts = await get_tts_provider(provider)
+            voices = await tts.get_available_voices()
+        else:
+            voices = await get_all_voices()
+        
+        return {
+            "success": True,
+            "voices": voices,
+            "total": len(voices),
+            "provider": provider
+        }
+    except Exception as e:
+        logger.error(f"Get TTS voices error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/tts/generate")
 async def generate_tts(request: TTSRequest):
     """Generate text-to-speech audio"""
     try:
-        logger.info(f"Generating TTS:  {request.text[: 100]}...")
+        from app.services.ai.tts_provider import get_tts_provider
+        
+        logger.info(f"Generating TTS: {request.text[:100]}...")
 
-        provider = request.ai_provider or settings.TTS_PROVIDER
-        tts = await get_tts_provider(provider)
+        provider_name = request.ai_provider or settings.TTS_PROVIDER
+        tts = await get_tts_provider(provider_name)
 
         output_path = await tts.synthesize(
-            text=request. text,
-            voice=request. voice,
+            text=request.text,
+            voice=request.voice,
             speed=request.speed,
-            pitch=request.pitch,
-            output_path=Path(settings. TEMP_DIR) / f"tts_{uuid.uuid4()}.mp3",
+            output_path=Path(settings.TEMP_DIR) / f"tts_{uuid.uuid4()}.mp3",
         )
 
         return {
             "success": True,
             "audio_path": str(output_path),
-            "provider": provider,
-            "voice":  request.voice,
+            "audio_url": f"/api/tts/download/{output_path.stem}",
+            "provider": provider_name,
+            "voice": request.voice,
         }
     except Exception as e:
         logger.error(f"TTS generation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tts/download/{audio_id}")
+async def download_tts_audio(audio_id: str):
+    """Download generated TTS audio"""
+    try:
+        # Search for audio file
+        for ext in [".mp3", ".wav"]:
+            audio_path = Path(settings.TEMP_DIR) / f"{audio_id}{ext}"
+            if audio_path.exists():
+                return FileResponse(
+                    path=audio_path,
+                    media_type="audio/mpeg",
+                    filename=f"{audio_id}.mp3"
+                )
+        
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"TTS download error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -186,12 +604,14 @@ async def generate_tts(request: TTSRequest):
 async def preview_voice(request: VoicePreviewRequest):
     """Preview AI voice"""
     try:
-        provider = request.ai_provider or settings.TTS_PROVIDER
-        tts = await get_tts_provider(provider)
+        from app.services.ai.tts_provider import get_tts_provider
+        
+        provider_name = request.ai_provider or settings.TTS_PROVIDER
+        tts = await get_tts_provider(provider_name)
 
-        audio_path = await tts.preview_voice(
-            voice=request.voice_id,
+        audio_path = await tts.synthesize(
             text=request.sample_text,
+            voice=request.voice_id,
         )
 
         return FileResponse(
@@ -419,8 +839,9 @@ async def process_story_video(
 
 
 @router.get("/videos/job/{job_id}")
-async def get_job_status(job_id: str, db: Session = next(get_db())):
+async def get_job_status(job_id: str):
     """Get job status"""
+    db = SessionLocal()
     try:
         job = db.query(VideoJob).filter(VideoJob.id == job_id).first()
         if not job:
@@ -440,14 +861,19 @@ async def get_job_status(job_id: str, db: Session = next(get_db())):
             "output_links": output_links,
             "error_message": job.error_message,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting job status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 
 @router.get("/videos/download/{job_id}")
-async def download_video(job_id: str, db: Session = next(get_db())):
+async def download_video(job_id: str):
     """Download processed video"""
+    db = SessionLocal()
     try:
         job = db.query(VideoJob).filter(VideoJob.id == job_id).first()
         if not job or not job.output_path:
@@ -462,9 +888,13 @@ async def download_video(job_id: str, db: Session = next(get_db())):
             media_type="video/mp4",
             filename=job.output_filename or "video. mp4",
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Download error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
 
 
 # ==================== HELPER FUNCTIONS ====================

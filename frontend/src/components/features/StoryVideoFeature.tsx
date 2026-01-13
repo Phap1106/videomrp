@@ -30,7 +30,7 @@ export function StoryVideoFeature() {
   });
 
   const handleGenerateStory = async () => {
-    if (!storyTopic. trim()) {
+    if (!storyTopic.trim()) {
       toast.error('Vui lòng nhập chủ đề câu chuyện');
       return;
     }
@@ -39,7 +39,7 @@ export function StoryVideoFeature() {
       setIsGeneratingStory(true);
       const result = await apiClient.generateStory(
         storyTopic,
-        storyOptions. duration * 3,
+        storyOptions.duration * 3,
         storyOptions.storyStyle,
         'vi'
       );
@@ -69,16 +69,16 @@ export function StoryVideoFeature() {
     try {
       setIsProcessing(true);
 
-      const result = await apiClient. processStoryVideo({
+      const result = await apiClient.processStoryVideo({
         source_url: videoUrl,
-        title:  title || 'Story Video',
+        title: title || 'Story Video',
         story_topic: storyTopic,
         duration: storyOptions.duration,
         story_style: storyOptions.storyStyle,
-        font_size:  storyOptions.fontSizeoverlay,
-        font_color:  storyOptions.fontColor,
+        font_size: storyOptions.fontSizeoverlay,
+        font_color: storyOptions.fontColor,
         text_position: storyOptions.textPosition,
-        tts_voice: storyOptions. selectedVoice,
+        tts_voice: storyOptions.selectedVoice,
       });
 
       if (result.success) {
@@ -117,68 +117,68 @@ export function StoryVideoFeature() {
   return (
     <div className="space-y-6">
       {/* Video Input */}
-      <div className="p-6 bg-white border border-gray-200 border-gray-700 rounded-lg dark:bg-gray-900 dark:">
-        <h2 className="flex items-center gap-2 mb-6 text-2xl font-bold">
-          <BookOpen className="w-6 h-6" />
+      <section className="app-card">
+        <h2 className="app-section-title">
+          <BookOpen className="w-6 h-6 text-purple-400" />
           Tạo Video Câu Chuyện
         </h2>
 
         <div className="space-y-4">
           <div>
-            <label className="block mb-2 text-sm font-medium">URL Video Gốc</label>
+            <label className="block mb-2 text-sm font-medium text-gray-200">URL Video Gốc</label>
             <input
               type="url"
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
               placeholder="https://www.youtube.com/watch?v=..."
-              className="w-full px-4 py-3 border rounded-lg dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus: ring-purple-500"
+              className="app-control"
             />
           </div>
 
           <div>
-            <label className="block mb-2 text-sm font-medium">Tiêu Đề Video</label>
+            <label className="block mb-2 text-sm font-medium text-gray-200">Tiêu Đề Video</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Tiêu đề video câu chuyện"
-              className="w-full px-4 py-3 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+              className="app-control"
             />
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Story Generation */}
-      <div className="p-6 bg-white border border-gray-200 rounded-lg dark:bg-gray-900 dark:border-gray-700">
-        <h3 className="flex items-center gap-2 mb-6 text-xl font-semibold">
-          <Zap className="w-5 h-5" />
+      <section className="app-card">
+        <h3 className="app-section-title">
+          <Zap className="w-5 h-5 text-purple-400" />
           Tạo Câu Chuyện AI
         </h3>
 
         <div className="space-y-4">
           <div>
-            <label className="block mb-2 text-sm font-medium">Chủ Đề Câu Chuyện</label>
+            <label className="block mb-2 text-sm font-medium text-gray-200">Chủ Đề Câu Chuyện</label>
             <textarea
               value={storyTopic}
-              onChange={(e) => setStoryTopic(e. target.value)}
-              placeholder="Mô tả chủ đề câu chuyện mà bạn muốn tạo (ví dụ: một người phiêu lưu tìm kiếm kho báu)..."
+              onChange={(e) => setStoryTopic(e.target.value)}
+              placeholder="Mô tả chủ đề câu chuyện..."
               rows={3}
-              className="w-full px-4 py-3 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+              className="app-control"
             />
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
-              <label className="block mb-2 text-sm font-medium">Kiểu Câu Chuyện</label>
+              <label className="block mb-2 text-sm font-medium text-gray-200">Kiểu Câu Chuyện</label>
               <select
-                value={storyOptions. storyStyle}
+                value={storyOptions.storyStyle}
                 onChange={(e) =>
                   setStoryOptions({
                     ...storyOptions,
                     storyStyle: e.target.value as any,
                   })
                 }
-                className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+                className="app-control"
               >
                 <option value="narrative">Tường Thuật</option>
                 <option value="dramatic">Kịch Tính</option>
@@ -188,7 +188,9 @@ export function StoryVideoFeature() {
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-medium">Thời Lượng (giây): {storyOptions.duration}</label>
+              <label className="block mb-2 text-sm font-medium text-gray-200">
+                Thời Lượng (giây): <span className="text-purple-300">{storyOptions.duration}</span>
+              </label>
               <input
                 type="range"
                 min="30"
@@ -205,7 +207,7 @@ export function StoryVideoFeature() {
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-medium">AI Provider</label>
+              <label className="block mb-2 text-sm font-medium text-gray-200">AI Provider</label>
               <select
                 value={storyOptions.aiProvider}
                 onChange={(e) =>
@@ -214,7 +216,7 @@ export function StoryVideoFeature() {
                     aiProvider: e.target.value as any,
                   })
                 }
-                className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+                className="app-control"
               >
                 <option value="auto">Auto</option>
                 <option value="openai">OpenAI</option>
@@ -227,46 +229,44 @@ export function StoryVideoFeature() {
             onClick={handleGenerateStory}
             disabled={isGeneratingStory || !storyTopic}
             className={clsx(
-              'w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition',
-              isGeneratingStory || !storyTopic
-                ?  'bg-gray-400 text-white cursor-not-allowed'
-                : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover: from-purple-700 hover: to-blue-700'
+              "app-btn-primary w-full",
+              (isGeneratingStory || !storyTopic) && "opacity-50 cursor-not-allowed shadow-none"
             )}
           >
             {isGeneratingStory && <Loader className="w-5 h-5 animate-spin" />}
-            {isGeneratingStory ? 'Đang Tạo Câu Chuyện...' : 'Tạo Câu Chuyện'}
+            {isGeneratingStory ? "Đang Tạo Câu Chuyện..." : "Tạo Câu Chuyện"}
           </button>
 
           {generatedStory && (
-            <div className="p-4 border border-gray-200 border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 dark:">
-              <h4 className="mb-2 font-semibold">Câu Chuyện Đã Tạo:</h4>
-              <p className="leading-relaxed text-gray-700 dark:text-gray-300">{generatedStory}</p>
+            <div className="p-4 border rounded-lg border-white/10 bg-white/5">
+              <h4 className="mb-2 font-semibold text-white">Câu Chuyện Đã Tạo:</h4>
+              <p className="leading-relaxed text-gray-300">{generatedStory}</p>
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Voice Selection */}
       {generatedStory && (
-        <div className="p-6 bg-white bg-gray-900 border border-gray-200 rounded-lg dark: dark:border-gray-700">
+        <section className="app-card">
           <VoiceSelector
             aiProvider={storyOptions.aiProvider}
             onVoiceSelect={(voice) =>
               setStoryOptions({ ...storyOptions, selectedVoice: voice })
             }
           />
-        </div>
+        </section>
       )}
 
       {/* Text Styling */}
       {generatedStory && (
-        <div className="p-6 bg-white bg-gray-900 border border-gray-200 rounded-lg dark: dark:border-gray-700">
-          <h3 className="mb-4 text-lg font-semibold">Cài Đặt Chữ</h3>
+        <section className="app-card">
+          <h3 className="app-section-title">Cài Đặt Chữ</h3>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
-              <label className="block mb-2 text-sm font-medium">
-                Kích Thước:  {storyOptions.fontSizeoverlay}px
+              <label className="block mb-2 text-sm font-medium text-gray-200">
+                Kích Thước: {storyOptions.fontSizeoverlay}px
               </label>
               <input
                 type="range"
@@ -284,7 +284,7 @@ export function StoryVideoFeature() {
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-medium">Màu Chữ</label>
+              <label className="block mb-2 text-sm font-medium text-gray-200">Màu Chữ</label>
               <div className="flex gap-2">
                 <input
                   type="color"
@@ -292,10 +292,10 @@ export function StoryVideoFeature() {
                   onChange={(e) =>
                     setStoryOptions({
                       ...storyOptions,
-                      fontColor:  e.target.value. substring(1).toUpperCase(),
+                      fontColor: e.target.value.substring(1).toUpperCase(),
                     })
                   }
-                  className="w-16 h-10 border rounded cursor-pointer"
+                  className="w-16 h-[46px] border border-white/10 rounded-lg cursor-pointer bg-transparent p-1"
                 />
                 <input
                   type="text"
@@ -303,25 +303,25 @@ export function StoryVideoFeature() {
                   onChange={(e) =>
                     setStoryOptions({
                       ...storyOptions,
-                      fontColor: e.target.value. toUpperCase(),
+                      fontColor: e.target.value.toUpperCase(),
                     })
                   }
-                  className="flex-1 px-3 py-2 border rounded dark:bg-gray-800 dark:border-gray-700"
+                  className="app-control"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-medium">Vị Trí</label>
+              <label className="block mb-2 text-sm font-medium text-gray-200">Vị Trí</label>
               <select
                 value={storyOptions.textPosition}
                 onChange={(e) =>
                   setStoryOptions({
                     ...storyOptions,
-                    textPosition: e. target.value as any,
+                    textPosition: e.target.value as any,
                   })
                 }
-                className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+                className="app-control"
               >
                 <option value="top">Trên Cùng</option>
                 <option value="center">Giữa</option>
@@ -332,7 +332,7 @@ export function StoryVideoFeature() {
 
           {/* Preview */}
           <div
-            className="p-6 mt-6 text-2xl font-bold text-center text-white bg-black rounded-lg"
+            className="p-6 mt-6 text-2xl font-bold text-center text-white bg-black/50 rounded-xl backdrop-blur-sm border border-white/10"
             style={{
               color: `#${storyOptions.fontColor}`,
               fontSize: `${storyOptions.fontSizeoverlay}px`,
@@ -340,7 +340,7 @@ export function StoryVideoFeature() {
           >
             Xem trước câu chuyện
           </div>
-        </div>
+        </section>
       )}
 
       {/* Process Button */}
@@ -349,61 +349,55 @@ export function StoryVideoFeature() {
           onClick={handleProcessStory}
           disabled={isProcessing || !videoUrl}
           className={clsx(
-            'w-full flex items-center justify-center gap-2 px-6 py-4 rounded-lg font-semibold transition text-lg',
-            isProcessing || ! videoUrl
-              ? 'bg-gray-400 text-white cursor-not-allowed'
-              : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700'
+            "w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold transition text-lg",
+            isProcessing || !videoUrl
+              ? "bg-white/10 text-gray-400 cursor-not-allowed"
+              : "bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-500 hover:to-emerald-500 shadow-lg shadow-green-500/30"
           )}
         >
           {isProcessing && <Loader className="w-6 h-6 animate-spin" />}
-          {isProcessing ? 'Đang Tạo Video...' : 'Tạo Video Câu Chuyện'}
+          {isProcessing ? "Đang Tạo Video..." : "Tạo Video Câu Chuyện"}
         </button>
       )}
 
       {/* Job Status */}
       {jobStatus && (
-        <div className="p-4 border border-blue-200 border-blue-700 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:">
-          <h4 className="mb-2 font-semibold">Trạng Thái Công Việc</h4>
-          <div className="space-y-2 text-sm">
+        <section className="app-card border-blue-500/30 bg-blue-500/5">
+          <h4 className="mb-2 font-semibold text-white">Trạng Thái Công Việc</h4>
+          <div className="space-y-2 text-sm text-gray-200">
             <div>
-              <strong>Trạng Thái:</strong>{' '}
+              <strong>Trạng Thái:</strong>{" "}
               <span
-                className={clsx(
-                  'px-2 py-1 rounded text-xs font-medium ml-2',
-                  {
-                    'bg-yellow-200 text-yellow-800': jobStatus. status === 'pending',
-                    'bg-blue-200 text-blue-800': jobStatus.status === 'processing',
-                    'bg-green-200 text-green-800': jobStatus.status === 'completed',
-                    'bg-red-200 text-red-800': jobStatus.status === 'failed',
-                  }
-                )}
+                className={clsx("rounded px-2 py-1 text-xs font-medium ml-2", {
+                  "bg-yellow-500/20 text-yellow-300": jobStatus.status === "pending",
+                  "bg-blue-500/20 text-blue-300": jobStatus.status === "processing",
+                  "bg-green-500/20 text-green-300": jobStatus.status === "completed",
+                  "bg-red-500/20 text-red-300": jobStatus.status === "failed",
+                })}
               >
-                {jobStatus.status. toUpperCase()}
+                {jobStatus.status.toUpperCase()}
               </span>
             </div>
             <div>
               <strong>Bước Hiện Tại:</strong> {jobStatus.current_step}
             </div>
             <div>
-              <strong>Tiến Độ:</strong> {jobStatus. progress}%
+              <strong>Tiến Độ:</strong> {jobStatus.progress}%
             </div>
             {jobStatus.error_message && (
-              <div className="mt-2 text-red-600">
+              <div className="mt-2 text-red-300">
                 <strong>Lỗi:</strong> {jobStatus.error_message}
               </div>
             )}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Video Preview */}
       {showPreview && currentJobId && (
-        <div className="p-6 bg-white border border-gray-200 rounded-lg dark:bg-gray-900 dark:border-gray-700">
-          <VideoPreview
-            jobId={currentJobId}
-            onClose={() => setShowPreview(false)}
-          />
-        </div>
+        <section className="app-card">
+          <VideoPreview jobId={currentJobId} onClose={() => setShowPreview(false)} />
+        </section>
       )}
     </div>
   );

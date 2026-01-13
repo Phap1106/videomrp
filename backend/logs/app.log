@@ -1911,3 +1911,26 @@ FROM video_jobs) AS anon_1]
 2026-01-11 23:49:46.573 | WARNING  | app.api.endpoints:health_check:155 - Redis health check failed (optional): Error 10061 connecting to localhost:6379. No connection could be made because the target machine actively refused it.
 2026-01-11 23:49:50.707 | WARNING  | app.api.endpoints:health_check:155 - Redis health check failed (optional): Error 10061 connecting to localhost:6379. No connection could be made because the target machine actively refused it.
 2026-01-12 00:38:43.959 | INFO     | app.main:lifespan:49 - 👋 Shutting down...
+2026-01-14 01:43:49.623 | INFO     | app.main:lifespan:24 - 🚀 Starting Video Reup AI Factory v3.0.0
+2026-01-14 01:43:49.633 | INFO     | app.main:lifespan:25 - Environment: production
+2026-01-14 01:43:49.634 | INFO     | app.main:lifespan:26 - Debug mode: False
+2026-01-14 01:43:50.361 | WARNING  | app.database:ensure_video_jobs_columns:234 - Could not ensure video_jobs columns: name 'text' is not defined
+2026-01-14 01:43:50.377 | INFO     | app.main:lifespan:37 - ✅ Database tables created and schema checked
+2026-01-14 01:43:50.380 | INFO     | app.main:lifespan:44 - ✅ Directories created
+2026-01-14 01:44:11.382 | ERROR    | app.services.ai.tts_provider:get_available_voices:119 - Error fetching Edge voices: No module named 'edge_tts'
+2026-01-14 01:44:11.479 | INFO     | app.main:lifespan:49 - 👋 Shutting down...
+2026-01-14 01:52:05.144 | INFO     | app.main:lifespan:24 - 🚀 Starting Video Reup AI Factory v3.0.0
+2026-01-14 01:52:05.144 | INFO     | app.main:lifespan:25 - Environment: production
+2026-01-14 01:52:05.144 | INFO     | app.main:lifespan:26 - Debug mode: False
+2026-01-14 01:52:05.448 | WARNING  | app.database:ensure_video_jobs_columns:234 - Could not ensure video_jobs columns: name 'text' is not defined
+2026-01-14 01:52:05.448 | INFO     | app.main:lifespan:37 - ✅ Database tables created and schema checked
+2026-01-14 01:52:05.448 | INFO     | app.main:lifespan:44 - ✅ Directories created
+2026-01-14 01:52:32.913 | ERROR    | app.services.ai.tts_provider:get_available_voices:119 - Error fetching Edge voices: No module named 'edge_tts'
+2026-01-14 01:52:32.927 | ERROR    | app.services.ai.tts_provider:get_available_voices:119 - Error fetching Edge voices: No module named 'edge_tts'
+2026-01-14 01:53:11.446 | ERROR    | app.services.ai.tts_provider:get_available_voices:119 - Error fetching Edge voices: No module named 'edge_tts'
+2026-01-14 01:53:11.451 | ERROR    | app.services.ai.tts_provider:get_available_voices:119 - Error fetching Edge voices: No module named 'edge_tts'
+2026-01-14 01:53:13.031 | ERROR    | app.services.ai.tts_provider:synthesize:95 - Edge TTS error: No module named 'edge_tts'
+2026-01-14 01:53:13.032 | ERROR    | app.api.endpoints:preview_voice:623 - Voice preview error: No module named 'edge_tts'
+2026-01-14 01:53:21.512 | ERROR    | app.services.ai.tts_provider:get_available_voices:119 - Error fetching Edge voices: No module named 'edge_tts'
+2026-01-14 01:53:21.512 | ERROR    | app.services.ai.tts_provider:get_available_voices:119 - Error fetching Edge voices: No module named 'edge_tts'
+2026-01-14 01:53:36.462 | INFO     | app.main:lifespan:49 - 👋 Shutting down...
