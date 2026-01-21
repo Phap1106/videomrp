@@ -18,10 +18,14 @@ interface VideoProcessingOptions {
   addSubtitles: boolean;
   addAiNarration: boolean;
   addTextOverlay: boolean;
+  addBackgroundMusic: boolean;
+  bgmStyle: string;
+  normalizeAudio: boolean;
   removeWatermark: boolean;
-  aiProvider: 'openai' | 'gemini' | 'auto';
+  aiProvider: 'openai' | 'gemini' | 'groq' | 'custom' | 'auto';
   ttsVoice?: string;
-  narrationStyle: 'professional' | 'casual' | 'dramatic';
+  narrationStyle: 'viral' | 'review' | 'storytelling' | 'professional' | 'hài hước' | 'dramatic' | 'casual';
+  rewriteFromOriginal: boolean;
   processingFlow: 'auto' | 'fast' | 'ai' | 'full' | 'custom';
 }
 
@@ -113,9 +117,13 @@ export const useAppStore = create<AppStore>((set) => ({
     addSubtitles: true,
     addAiNarration: true,
     addTextOverlay: false,
+    addBackgroundMusic: false,
+    bgmStyle: 'cheerful',
+    normalizeAudio: true,
     removeWatermark: true,
     aiProvider: 'auto',
-    narrationStyle: 'professional',
+    narrationStyle: 'viral',
+    rewriteFromOriginal: true,
     processingFlow: 'auto',
   },
   setCurrentOptions: (options) =>

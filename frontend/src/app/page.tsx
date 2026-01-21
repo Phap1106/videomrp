@@ -20,6 +20,7 @@ import toast from 'react-hot-toast';
 import { apiClient } from '@/lib/api-client';
 import { ReupVideoFeature } from '@/components/features/ReupVideoFeature';
 import { StoryVideoFeature } from '@/components/features/StoryVideoFeature';
+import { SeriesFeature } from '@/components/features/SeriesFeature';
 import { HighlightFeature } from '@/components/features/HighlightFeature';
 import { SplitScreenFeature } from '@/components/features/SplitScreenFeature';
 import { AspectRatioFeature } from '@/components/features/AspectRatioFeature';
@@ -28,7 +29,7 @@ import { VideoPlayer } from '@/components/VideoPlayer';
 import { EOAChatbot } from '@/components/EOAChatbot';
 import clsx from 'clsx';
 
-type TabKey = 'reup' | 'story' | 'highlight' | 'merge' | 'aspect' | 'tts';
+type TabKey = 'reup' | 'story' | 'series' | 'highlight' | 'merge' | 'aspect' | 'tts';
 
 interface HealthStatus {
   api?: boolean;
@@ -84,6 +85,7 @@ export default function HomePage() {
   const tabs = [
     { key: 'reup' as TabKey, label: '🎬 Reup', icon: Upload, description: 'Tải và xử lý video từ URL với AI' },
     { key: 'story' as TabKey, label: '📖 Story', icon: BookOpen, description: 'Tạo video câu chuyện AI với âm thanh' },
+    { key: 'series' as TabKey, label: '📚 Series', icon: Layers, description: 'Tạo series kể chuyện dài kỳ (3-10 tập)' },
     { key: 'highlight' as TabKey, label: '✂️ Highlight', icon: Scissors, description: 'Trích xuất đoạn hay nhất từ video dài' },
     { key: 'merge' as TabKey, label: '🎞️ Split Screen', icon: Layers, description: 'Ghép 2 video split-screen' },
     { key: 'aspect' as TabKey, label: '📐 Tỉ lệ', icon: Maximize2, description: 'Chuyển đổi tỉ lệ khung hình' },
@@ -171,6 +173,7 @@ export default function HomePage() {
             <div className="space-y-6">
               {selectedTab === 'reup' && <ReupVideoFeature />}
               {selectedTab === 'story' && <StoryVideoFeature />}
+              {selectedTab === 'series' && <SeriesFeature />}
               {selectedTab === 'highlight' && <HighlightFeature />}
               {selectedTab === 'merge' && <SplitScreenFeature />}
               {selectedTab === 'aspect' && <AspectRatioFeature />}

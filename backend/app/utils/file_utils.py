@@ -14,6 +14,8 @@ def ensure_dirs():
 
     for dir_path in dirs:
         Path(dir_path).mkdir(parents=True, exist_ok=True)
+    
+    return dirs
 
 
 def get_file_hash(file_path: str) -> str:

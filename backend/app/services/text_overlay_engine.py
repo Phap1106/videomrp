@@ -15,19 +15,19 @@ import json
 class TextStyle:
     """Text styling configuration"""
     font_file: Optional[Path] = None
-    font_size: int = 60
-    font_color: str = "FFFFFF"  # Hex color
-    bold: bool = False
+    font_size: int = 70  # Increased for impact
+    font_color: str = "FFFF00"  # YELLOW for better visibility on dark backgrounds
+    bold: bool = True    # BOLD is default for Shorts
     italic:  bool = False
     bg_color: str = "000000"
-    bg_alpha: float = 0.7
-    position: str = "bottom"  # top, center, bottom, custom
+    bg_alpha: float = 0.5 # Subtler background
+    position: str = "center"  # CENTER is often better for dynamic captions
     x:  Optional[int] = None
     y: Optional[int] = None
-    border_width: int = 2
+    border_width: int = 3
     border_color: str = "000000"
-    shadow: bool = False
-    shadow_offset: int = 2
+    shadow: bool = True # Yes to shadow
+    shadow_offset: int = 3
 
     def to_dict(self) -> dict:
         """Convert to dictionary"""

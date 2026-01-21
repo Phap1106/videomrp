@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-01-18T02:41:33.933374",
+  "results": {
+    "health": "PASS",
+    "reup_flow": "FAIL: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",
+    "analyzer": "FAIL: Job 409a63c3-6816-4b4d-8d13-2602534761ba FAILED: Video ingestion failed"
+  },
+  "metrics": {
+    "System Health Check": [
+      6.233797788619995
+    ]
+  },
+  "satisfaction_score": 70
+}

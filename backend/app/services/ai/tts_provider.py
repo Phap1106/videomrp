@@ -32,8 +32,14 @@ class TTSProvider(ABC):
         voice: str = None,
         speed: float = 1.0,
         output_path: Path = None,
-    ) -> Path:
-        """Synthesize text to speech"""
+        with_timing: bool = False,
+    ) -> tuple[Path, Optional[list[dict]]]:
+        """Synthesize text to speech
+        
+        Returns:
+            Tuple of (audio_path, Optional[word_timing])
+            word_timing list: [{"start": 0, "end": 0.5, "text": "word"}]
+        """
         pass
 
     @abstractmethod
@@ -68,9 +74,10 @@ class EdgeTTSProvider(TTSProvider):
         self,
         text: str,
         voice: str = None,
-        speed: float = 1.0,
+        speed: float = 1.15,
         output_path: Path = None,
-    ) -> Path:
+        with_timing: bool = False,
+    ) -> tuple[Path, Optional[list[dict]]]:
         """Synthesize using Edge TTS"""
         try:
             import edge_tts
@@ -79,21 +86,44 @@ class EdgeTTSProvider(TTSProvider):
             output_path = output_path or Path(settings.TEMP_DIR) / f"tts_edge_{uuid.uuid4().hex[:8]}.mp3"
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            logger.info(f"Synthesizing with Edge TTS: {voice}")
+            logger.info(f"Synthesizing with Edge TTS: {voice}, speed: {speed}, with_timing: {with_timing}")
             
-            # Calculate rate string (e.g., "+20%" or "-10%")
+            # Calculate rate string
             rate_percent = int((speed - 1.0) * 100)
             rate_str = f"+{rate_percent}%" if rate_percent >= 0 else f"{rate_percent}%"
             
             communicate = edge_tts.Communicate(text, voice, rate=rate_str)
-            await communicate.save(str(output_path))
+            
+            word_timing = []
+            if with_timing:
+                with open(output_path, "wb") as f:
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            f.write(chunk["data"])
+                        elif chunk["type"] == "WordBoundary":
+                            word_timing.append({
+                                "start": chunk["offset"] / 10**7, # Convert 100ns units to seconds
+                                "end": (chunk["offset"] + chunk["duration"]) / 10**7,
+                                "text": chunk["text"]
+                            })
+            else:
+                await communicate.save(str(output_path))
 
             logger.info(f"Edge TTS output saved to {output_path}")
-            return output_path
+            return output_path, word_timing if with_timing else None
 
         except Exception as e:
             logger.error(f"Edge TTS error: {e}")
             raise
+    
+    def _add_natural_pauses(self, text: str) -> str:
+        """Add SSML-like pauses for more natural speech"""
+        import re
+        # Add longer pause after sentences
+        text = re.sub(r'([.!?])\s+', r'\1... ', text)
+        # Add brief pause after commas
+        text = re.sub(r',\s+', ', ', text)
+        return text
 
     async def get_available_voices(self) -> List[Dict[str, Any]]:
         """Get available Edge TTS voices"""
@@ -114,20 +144,32 @@ class EdgeTTSProvider(TTSProvider):
                         "provider": "edge",
                     })
             
-            return result[:30]  # Limit results
+            # Sort: Vietnamese first
+            result.sort(key=lambda x: (0 if x["language"].startswith("vi-") else 1, x["language"]))
+            
+            return result[:100]  # Increased limit
         except Exception as e:
             logger.error(f"Error fetching Edge voices: {e}")
             return self._get_default_voices()
 
     def _get_default_voices(self) -> List[Dict[str, Any]]:
-        """Default Vietnamese and English voices"""
+        """Default Vietnamese and English voices - curated list"""
         return [
-            {"id": "vi-VN-HoaiMyNeural", "name": "Hoài My (Nữ)", "gender": "female", "language": "vi-VN", "provider": "edge"},
-            {"id": "vi-VN-NamMinhNeural", "name": "Nam Minh (Nam)", "gender": "male", "language": "vi-VN", "provider": "edge"},
-            {"id": "en-US-JennyNeural", "name": "Jenny (Female)", "gender": "female", "language": "en-US", "provider": "edge"},
-            {"id": "en-US-GuyNeural", "name": "Guy (Male)", "gender": "male", "language": "en-US", "provider": "edge"},
-            {"id": "en-US-AriaNeural", "name": "Aria (Female)", "gender": "female", "language": "en-US", "provider": "edge"},
-            {"id": "en-GB-SoniaNeural", "name": "Sonia (Female UK)", "gender": "female", "language": "en-GB", "provider": "edge"},
+            # Vietnamese voices (miền Bắc, miền Nam style)
+            {"id": "vi-VN-HoaiMyNeural", "name": "Hoài My (Nữ - Miền Bắc)", "gender": "female", "language": "vi-VN", "provider": "edge"},
+            {"id": "vi-VN-NamMinhNeural", "name": "Nam Minh (Nam - Miền Bắc)", "gender": "male", "language": "vi-VN", "provider": "edge"},
+            
+            # English voices - diverse options
+            {"id": "en-US-JennyNeural", "name": "Jenny (Nữ - US)", "gender": "female", "language": "en-US", "provider": "edge"},
+            {"id": "en-US-GuyNeural", "name": "Guy (Nam - US)", "gender": "male", "language": "en-US", "provider": "edge"},
+            {"id": "en-US-AriaNeural", "name": "Aria (Nữ - US)", "gender": "female", "language": "en-US", "provider": "edge"},
+            {"id": "en-US-DavisNeural", "name": "Davis (Nam - US)", "gender": "male", "language": "en-US", "provider": "edge"},
+            {"id": "en-GB-SoniaNeural", "name": "Sonia (Nữ - UK)", "gender": "female", "language": "en-GB", "provider": "edge"},
+            {"id": "en-GB-RyanNeural", "name": "Ryan (Nam - UK)", "gender": "male", "language": "en-GB", "provider": "edge"},
+            {"id": "en-AU-NatashaNeural", "name": "Natasha (Nữ - Australia)", "gender": "female", "language": "en-AU", "provider": "edge"},
+            {"id": "en-AU-WilliamNeural", "name": "William (Nam - Australia)", "gender": "male", "language": "en-AU", "provider": "edge"},
+            {"id": "en-SG-LunaNeural", "name": "Luna (Nữ - Singapore)", "gender": "female", "language": "en-SG", "provider": "edge"},
+            {"id": "en-ZA-LeahNeural", "name": "Leah (Nữ - South Africa)", "gender": "female", "language": "en-ZA", "provider": "edge"},
         ]
 
 
@@ -184,7 +226,7 @@ class ViettelAITTSProvider(TTSProvider):
                     with open(output_path, "wb") as f:
                         f.write(response.content)
                     logger.info(f"ViettelAI TTS output saved to {output_path}")
-                    return output_path
+                    return output_path, None
                 else:
                     raise Exception(f"ViettelAI API error: {response.status_code} - {response.text}")
 
@@ -255,7 +297,7 @@ class FPTAITTSProvider(TTSProvider):
                         with open(output_path, "wb") as f:
                             f.write(audio_response.content)
                     logger.info(f"FPT.AI TTS output saved to {output_path}")
-                    return output_path
+                    return output_path, None
                 else:
                     raise Exception(f"FPT.AI API error: {response.status_code}")
 
@@ -329,7 +371,7 @@ class ElevenLabsTTSProvider(TTSProvider):
                     with open(output_path, "wb") as f:
                         f.write(response.content)
                     logger.info(f"ElevenLabs TTS output saved to {output_path}")
-                    return output_path
+                    return output_path, None
                 else:
                     raise Exception(f"ElevenLabs API error: {response.status_code} - {response.text}")
 
@@ -423,7 +465,7 @@ class OpenAITTSProvider(TTSProvider):
                 f.write(audio_data)
 
             logger.info(f"OpenAI TTS output saved to {output_path}")
-            return output_path
+            return output_path, None
 
         except Exception as e:
             logger.error(f"OpenAI TTS error: {e}")
@@ -479,7 +521,7 @@ class GTTSProvider(TTSProvider):
             await loop.run_in_executor(None, tts.save, str(output_path))
 
             logger.info(f"gTTS output saved to {output_path}")
-            return output_path
+            return output_path, None
 
         except Exception as e:
             logger.error(f"gTTS error: {e}")
@@ -524,7 +566,7 @@ class MockTTSProvider(TTSProvider):
             wav_file.writeframes(b'\x00\x00' * 44100)
 
         logger.info(f"Mock TTS output saved to {output_path}")
-        return output_path
+        return output_path, None
 
     async def get_available_voices(self) -> List[Dict[str, Any]]:
         """Get mock voices"""

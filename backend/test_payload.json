@@ -1,0 +1,9 @@
+{
+    "source_url": "https://www.tiktok.com/@khoisilk/video/7392696347419847943",
+    "target_platform": "tiktok",
+    "video_type": "short",
+    "duration": 60,
+    "add_subtitles": true,
+    "add_ai_narration": true,
+    "processing_flow": "fast"
+}

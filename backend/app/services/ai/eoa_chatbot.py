@@ -380,7 +380,7 @@ Tôi đã ghi nhận yêu cầu của bạn. Để tạo được câu chuyện 
                 story_text = self._add_natural_pauses(story_text)
             
             output_path = Path(settings.PROCESSED_DIR) / f"eoa_audio_{session_id}.mp3"
-            audio_path = await tts.synthesize(
+            audio_path, _ = await tts.synthesize(
                 text=story_text,
                 voice=voice,
                 speed=speed,
@@ -426,24 +426,19 @@ Tôi đã ghi nhận yêu cầu của bạn. Để tạo được câu chuyện 
         words_per_second = 2.5  # Average speaking rate
         target_words = int(duration * words_per_second)
         
-        prompt = f"""Dựa trên cuộc hội thoại trước đó, hãy viết một câu chuyện hoàn chỉnh với các yêu cầu:
-
-THÔNG TIN ĐÃ THU THẬP:
-- Dàn ý: {outline}
-- Phong cách: {style}
-- Độ dài: khoảng {target_words} từ (tương đương {duration} giây khi đọc)
-
-YÊU CẦU:
-1. Viết câu chuyện liền mạch, không có tiêu đề hay đánh số
-2. Sử dụng ngôn ngữ tự nhiên, có cảm xúc
-3. Có mở đầu hấp dẫn, thân bài gay cấn, kết thúc ấn tượng
-4. Phù hợp để đọc thành audio (voice-over)
-5. Không sử dụng emoji hay ký tự đặc biệt
-
-CHỈ trả về nội dung câu chuyện, không có gì khác."""
+        # Get professional conversational prompt
+        from app.ai_prompts import VideoPrompts
+        
+        prompt = VideoPrompts.get_conversational_narration_prompt(
+            topic=outline or "Video audio content",
+            duration=duration,
+            tone=style
+        )
+        
+        prompt += f"\n\nTHÔNG TIN BỔ SUNG TỪ NGƯỜI DÙNG:\n- Dàn ý: {outline}\n- Phong cách: {style}\n- Yêu cầu đặc biệt: Phải là một cuộc hội thoại/lời thoại hấp dẫn."
 
         context = [
-            {"role": "system", "content": "Bạn là nhà văn chuyên viết truyện ngắn hấp dẫn cho audio/video."}
+            {"role": "system", "content": "Bạn là chuyên gia viết kịch bản audio/video sáng tạo."}
         ]
         
         # Add relevant conversation history

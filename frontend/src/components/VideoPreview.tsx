@@ -8,16 +8,19 @@ import clsx from 'clsx';
 
 interface VideoPreviewProps {
   jobId: string;
-  videoUrl?:  string;
+  videoUrl?: string;
   onClose?: () => void;
 }
 
-export function VideoPreview({ jobId, videoUrl, onClose }:  VideoPreviewProps) {
+export function VideoPreview({ jobId, videoUrl, onClose }: VideoPreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Construct source URL if not provided directly
+  const sourceUrl = videoUrl || (jobId ? `/api/videos/download/${jobId}` : '');
 
   useEffect(() => {
     const video = videoRef.current;
@@ -81,7 +84,7 @@ export function VideoPreview({ jobId, videoUrl, onClose }:  VideoPreviewProps) {
   };
 
   const formatTime = (seconds: number) => {
-    const hours = Math. floor(seconds / 3600);
+    const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
 
@@ -110,11 +113,13 @@ export function VideoPreview({ jobId, videoUrl, onClose }:  VideoPreviewProps) {
       <div className="relative mb-4 overflow-hidden bg-black rounded-lg aspect-video">
         <video
           ref={videoRef}
-          src={videoUrl}
+          src={sourceUrl}
           className="w-full h-full"
+          controls={false}
+          playsInline
         />
 
-        {! isPlaying && (
+        {!isPlaying && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50">
             <button
               onClick={handlePlayPause}
@@ -156,7 +161,7 @@ export function VideoPreview({ jobId, videoUrl, onClose }:  VideoPreviewProps) {
             className={clsx(
               'flex items-center gap-2 px-4 py-2 rounded font-medium transition',
               isPlaying
-                ?  'bg-red-600 text-white hover: bg-red-700'
+                ? 'bg-red-600 text-white hover: bg-red-700'
                 : 'bg-green-600 text-white hover:bg-green-700'
             )}
           >

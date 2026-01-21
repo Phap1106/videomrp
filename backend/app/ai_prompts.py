@@ -399,6 +399,91 @@ class VideoPrompts:
         }}
         """
 
+    @staticmethod
+    def get_transcript_rewrite_prompt(transcript: str, tone: str = "viral") -> str:
+        """Get prompt for rewriting a video transcript into a high-quality script"""
+        style_instructions = {
+            "viral": "Làm cho nội dung cực kỳ thu hút, dùng câu ngắn, punchy, và ngôn ngữ gây tò mò.",
+            "review": "Chỉnh sửa để nghe như một bài đánh giá chuyên nghiệp, có cấu trúc: Vấn đề -> Giải pháp -> Kết quả.",
+            "storytelling": "Viết lại dưới dạng một câu chuyện có dẫn dắt cảm xúc, có mở đầu, cao trào và kết thúc.",
+            "professional": "Làm cho nội dung trang trọng, uy tín, chính xác nhưng vẫn dễ tiếp cận.",
+            "hài hước": "Thêm các yếu tố hài hước, dí dỏm, ngôn ngữ Gen Z hoặc trending.",
+            "dramatic": "Tạo sự kịch tính, hồi hộp, dùng các từ ngữ mạnh mẽ."
+        }
+        
+        style_note = style_instructions.get(tone.lower(), "Làm cho nội dung hay hơn và chuyên nghiệp hơn.")
+        
+        return f"""
+        BẠN LÀ MỘT CHUYÊN GIA BIÊN TẬP NỘI DUNG VÀ SÁNG TẠO SCRIPT (CONTENT CREATOR).
+        
+        NHIỆM VỤ: Bạn sẽ nhận được một bản TRANSCRIPT (lời thoại gốc) từ một video. 
+        Nhiệm vụ của bạn là viết lại (REWRITE) bản transcript này thành một kịch bản lời thoại (narration script) "CHUẨN" hơn, hay hơn và chuyên nghiệp hơn theo phong cách: {tone}.
+        
+        TRANSCRIPT GỐC:
+        ---
+        {transcript}
+        ---
+        
+        YÊU CẦU CHI TIẾT:
+        1. PHONG CÁCH {tone.upper()}: {style_note}
+        2. VĂN NÓI (SPOKEN LANGUAGE): Tuyệt đối dùng văn nói 100%. Phải tự nhiên như người thật đang trò chuyện.
+        3. TỐI ƯU HÓA: 
+           - Loại bỏ các từ lặp, từ thừa (à, ừm, thì là mà...).
+           - Làm cho câu văn mạch lạc, có nhịp điệu (Rhythm).
+           - Giữ nguyên nội dung cốt lõi nhưng cách diễn đạt phải lôi cuốn hơn.
+        4. THỜI LƯỢNG: Cố gắng giữ thời lượng tương đương hoặc ngắn gọn hơn bản gốc (không kéo dài quá nhiều).
+        5. KHÔNG CHÀO HỎI: Không dùng "Chào mừng các bạn", "Trong video này". Vào thẳng vấn đề!
+        
+        QUY TẮC ĐẦU RA:
+        - Chỉ trả về nội dung lời thoại tiếng Việt hoàn chỉnh.
+        - Không ghi chú, không giải thích, không dùng emoji.
+        - Viết liền mạch để API TTS đọc mượt mà.
+        
+        BẮT ĐẦU VIẾT LẠI NGAY BÂY GIỜ.
+        """
+
+    @staticmethod
+    def get_conversational_narration_prompt(topic: str, duration: int = 60, tone: str = "engaging") -> str:
+        """Get highly detailed prompt for conversational audio content"""
+        # Estimate words: ~150 words per minute
+        estimated_words = int(duration * 2.5)
+        
+        # Select style-specific instructions
+        style_instructions = {
+            "viral": "Tập trung vào sự tò mò, shock, và các câu ngắn. Làm cho người xem phải share ngay.",
+            "review": "Khách quan nhưng hào hứng. Hãy nói như một người dùng thật đang trải nghiệm sản phẩm/dịch vụ.",
+            "storytelling": "Sử dụng lối dẫn dắt cảm xúc, có các quãng nghỉ (pauses) gợi mở sự tò mò.",
+            "professional": "Trang trọng, súc tích, chuyên gia. Tập trung vào facts và giá trị cốt lõi.",
+            "hài hước": "Dùng ngôn ngữ dí dỏm, tiếng lóng trending, cách ngắt nhịp gây cười.",
+            "dramatic": "Căng thẳng, hồi hộp, nhịp độ nhanh dần về phía cuối."
+        }
+        
+        style_note = style_instructions.get(tone.lower(), "Hợp tác, thân thiện và lôi cuốn.")
+        
+        return f"""
+        BẠN LÀ MỘT CHUYÊN GIA SÁNG TẠO NỘI DUNG AUDIO (PODCAST/TIKTOK/REELS) ĐỈNH CAO.
+        
+        NHIỆM VỤ: Tạo ra một kịch bản lời thoại (narration script) cực kỳ HẤP DẪN, TỰ NHIÊN và "DÍNH" người nghe ngay từ giây đầu tiên.
+        
+        CHỦ ĐỀ: {topic}
+        THỜI LƯỢNG MỤC TIÊU: {duration} giây (khoảng {estimated_words} từ).
+        PHONG CÁCH: {tone} ({style_note})
+        
+        CÔNG THỨC 5 BƯỚC CỦA BẠN:
+        1. THE HOOK (0-5s): Câu hỏi sốc, sự thật lạ lùng, hoặc giải pháp cho một vấn đề đau đầu.
+        2. THE CONTEXT: Tại sao nội dung này lại quan trọng với khán giả ngay lúc này?
+        3. THE CORE: Nội dung chính diễn giải theo phong cách {tone}.
+        4. THE TWIST/INSIGHT: Một bí mật hoặc một góc nhìn mới lạ.
+        5. THE PAYOFF & CTA: Kết luận mạnh mẽ và kêu gọi hành động tự nhiên.
+        
+        NGUYÊN TẮC:
+        - 100% Văn nói (Spoken language). Dùng các từ đệm: "Thật ra thì", "Mà nè", "Bạn tin không?", "Đúng rồi đó".
+        - Nhịp điệu: Câu ngắn - câu ngắn - câu dài. Tạo cảm giác đối thoại 1-1.
+        - Không ghi tiêu đề, không đánh số, không dùng emoji.
+        
+        CHỈ TRẢ VỀ NỘI DUNG LỜI THOẠI TIẾNG VIỆT.
+        """
+
     # ================ HASHTAG & TITLE GENERATION ================
 
     @staticmethod

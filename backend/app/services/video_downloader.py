@@ -55,6 +55,9 @@ class VideoDownloader:
                 else:
                     result = await self._download_generic(url, output_dir, timestamp)
 
+                if not result:
+                    raise Exception("Download helper returned None")
+
                 result["platform"] = platform.value
                 return result
 
@@ -75,33 +78,32 @@ class VideoDownloader:
             logger.info("Trying TikWM API...")
             api_url = f"https://www.tikwm.com/api/?url={url}&hd=1"
 
-            async with self.client as client:
-                response = await client.get(api_url, timeout=30.0)
-                data = response.json()
+            response = await self.client.get(api_url, timeout=30.0)
+            data = response.json()
 
-                if data.get("code") == 0 and data.get("data"):
-                    video_data = data["data"]
+            if data.get("code") == 0 and data.get("data"):
+                video_data = data["data"]
 
-                    # Try HD first, then fall back to SD
-                    video_url = (
-                        video_data.get("hdplay")
-                        or video_data.get("play")
-                        or video_data.get("wmplay")
-                    )
+                # Try HD first, then fall back to SD
+                video_url = (
+                    video_data.get("hdplay")
+                    or video_data.get("play")
+                    or video_data.get("wmplay")
+                )
 
-                    if video_url:
-                        output_path = output_dir / f"tiktok_{timestamp}.mp4"
-                        await self._download_file(video_url, output_path)
+                if video_url:
+                    output_path = output_dir / f"tiktok_{timestamp}.mp4"
+                    await self._download_file(video_url, output_path)
 
-                        return {
-                            "path": str(output_path),
-                            "title": video_data.get("title", ""),
-                            "author": video_data.get("author", {}).get("nickname", ""),
-                            "duration": video_data.get("duration", 0),
-                            "resolution": "720p" if video_data.get("hdplay") else "480p",
-                            "no_watermark": True,
-                            "method": "tikwm_api",
-                        }
+                    return {
+                        "path": str(output_path),
+                        "title": video_data.get("title", ""),
+                        "author": video_data.get("author", {}).get("nickname", ""),
+                        "duration": video_data.get("duration", 0),
+                        "resolution": "720p" if video_data.get("hdplay") else "480p",
+                        "no_watermark": True,
+                        "method": "tikwm_api",
+                    }
         except Exception as e:
             logger.warning(f"TikWM API failed: {e}")
 
@@ -110,25 +112,24 @@ class VideoDownloader:
             logger.info("Trying SnapTik API...")
             api_url = f"https://snaptik.app/api.php?url={url}"
 
-            async with self.client as client:
-                response = await client.get(api_url, timeout=30.0)
-                data = response.json()
+            response = await self.client.get(api_url, timeout=30.0)
+            data = response.json()
 
-                if data.get("success") and data.get("data"):
-                    video_url = data["data"].get("download_url")
-                    if video_url:
-                        output_path = output_dir / f"tiktok_{timestamp}.mp4"
-                        await self._download_file(video_url, output_path)
+            if data.get("success") and data.get("data"):
+                video_url = data["data"].get("download_url")
+                if video_url:
+                    output_path = output_dir / f"tiktok_{timestamp}.mp4"
+                    await self._download_file(video_url, output_path)
 
-                        return {
-                            "path": str(output_path),
-                            "title": data["data"].get("title", ""),
-                            "author": data["data"].get("author", ""),
-                            "duration": 0,
-                            "resolution": "720p",
-                            "no_watermark": True,
-                            "method": "snaptik_api",
-                        }
+                    return {
+                        "path": str(output_path),
+                        "title": data["data"].get("title", ""),
+                        "author": data["data"].get("author", ""),
+                        "duration": 0,
+                        "resolution": "720p",
+                        "no_watermark": True,
+                        "method": "snaptik_api",
+                    }
         except Exception as e:
             logger.warning(f"SnapTik API failed: {e}")
 
@@ -157,43 +158,43 @@ class VideoDownloader:
 
             try:
                 # Try to fetch page and extract playAddr or og:video URL
-                async with self.client.get(url, timeout=30.0) as resp:
-                    page_text = await resp.aread()
-                    text_str = page_text.decode("utf-8", errors="ignore")
+                resp = await self.client.get(url, timeout=30.0)
+                page_text = resp.content
+                text_str = page_text.decode("utf-8", errors="ignore")
 
-                    # look for playAddr (common in TikTok page payloads)
-                    m = re.search(r'"playAddr":"([^\"]+)"', text_str)
-                    if m:
-                        video_url = m.group(1).encode("utf-8").decode("unicode_escape")
-                        output_path = output_dir / f"tiktok_{timestamp}.mp4"
-                        await self._download_file(video_url, output_path)
+                # look for playAddr (common in TikTok page payloads)
+                m = re.search(r'"playAddr":"([^\"]+)"', text_str)
+                if m:
+                    video_url = m.group(1).encode("utf-8").decode("unicode_escape")
+                    output_path = output_dir / f"tiktok_{timestamp}.mp4"
+                    await self._download_file(video_url, output_path)
 
-                        return {
-                            "path": str(output_path),
-                            "title": "",
-                            "author": "",
-                            "duration": 0,
-                            "resolution": "unknown",
-                            "no_watermark": False,
-                            "method": "page_scrape",
-                        }
+                    return {
+                        "path": str(output_path),
+                        "title": "",
+                        "author": "",
+                        "duration": 0,
+                        "resolution": "unknown",
+                        "no_watermark": False,
+                        "method": "page_scrape",
+                    }
 
-                    # fallback: og:video
-                    m2 = re.search(r'<meta property="og:video" content="([^"]+)"', text_str)
-                    if m2:
-                        video_url = m2.group(1)
-                        output_path = output_dir / f"tiktok_{timestamp}.mp4"
-                        await self._download_file(video_url, output_path)
+                # fallback: og:video
+                m2 = re.search(r'<meta property="og:video" content="([^"]+)"', text_str)
+                if m2:
+                    video_url = m2.group(1)
+                    output_path = output_dir / f"tiktok_{timestamp}.mp4"
+                    await self._download_file(video_url, output_path)
 
-                        return {
-                            "path": str(output_path),
-                            "title": "",
-                            "author": "",
-                            "duration": 0,
-                            "resolution": "unknown",
-                            "no_watermark": False,
-                            "method": "page_scrape_og",
-                        }
+                    return {
+                        "path": str(output_path),
+                        "title": "",
+                        "author": "",
+                        "duration": 0,
+                        "resolution": "unknown",
+                        "no_watermark": False,
+                        "method": "page_scrape_og",
+                    }
 
             except Exception as e2:
                 logger.warning(f"Page scrape fallback failed: {e2}")
@@ -205,27 +206,26 @@ class VideoDownloader:
         """Download Douyin video"""
         try:
             api_url = f"https://douyin.wtf/api?url={url}"
-            async with self.client as client:
-                response = await client.get(api_url, timeout=30.0)
-                data = response.json()
+            response = await self.client.get(api_url, timeout=30.0)
+            data = response.json()
 
-                if data.get("status") == "success":
-                    video_data = data["video_data"]
-                    video_url = video_data.get("nwm_video_url") or video_data.get("video_url")
+            if data.get("status") == "success":
+                video_data = data["video_data"]
+                video_url = video_data.get("nwm_video_url") or video_data.get("video_url")
 
-                    if video_url:
-                        output_path = output_dir / f"douyin_{timestamp}.mp4"
-                        await self._download_file(video_url, output_path)
+                if video_url:
+                    output_path = output_dir / f"douyin_{timestamp}.mp4"
+                    await self._download_file(video_url, output_path)
 
-                        return {
-                            "path": str(output_path),
-                            "title": video_data.get("desc", ""),
-                            "author": video_data.get("author", {}).get("nickname", ""),
-                            "duration": video_data.get("duration", 0),
-                            "resolution": "720p",
-                            "no_watermark": True,
-                            "method": "douyin_api",
-                        }
+                    return {
+                        "path": str(output_path),
+                        "title": video_data.get("desc", ""),
+                        "author": video_data.get("author", {}).get("nickname", ""),
+                        "duration": video_data.get("duration", 0),
+                        "resolution": "720p",
+                        "no_watermark": True,
+                        "method": "douyin_api",
+                    }
         except Exception as e:
             logger.warning(f"Douyin API failed: {e}")
 
@@ -242,8 +242,8 @@ class VideoDownloader:
             extra_opts={
                 "writeinfojson": True,
                 "writethumbnail": True,
-                "writesubtitles": True,
-                "writeautomaticsub": True,
+                "writesubtitles": False,
+                "writeautomaticsub": False,
                 "subtitleslangs": ["en", "vi"],
             },
         )
@@ -316,10 +316,14 @@ class VideoDownloader:
         try:
             # Run yt-dlp in thread to avoid blocking
             loop = asyncio.get_event_loop()
+            logger.info(f"Starting yt-dlp extraction for {url}")
             info = await loop.run_in_executor(None, lambda: self._ytdlp_extract_info(url, ydl_opts))
 
             if not info:
-                raise Exception("Failed to extract video info")
+                logger.error("yt-dlp returned None info")
+                raise Exception("Failed to extract video info (info is None)")
+            
+            logger.info(f"yt-dlp info extracted. ID: {info.get('id')}")
 
             video_id = info.get("id", str(int(time.time())))
             ext = info.get("ext", "mp4")

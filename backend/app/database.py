@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Generator
 from contextlib import contextmanager
 
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import MetaData, create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool, StaticPool

@@ -1,0 +1,22 @@
+{
+    "format": {
+        "filename": "D:\\video_tool\\backend\\data\\processed\\reup_678963b5-9208-4bea-bdf8-6d17d078eed4.mp4",
+        "nb_streams": 2,
+        "nb_programs": 0,
+        "nb_stream_groups": 0,
+        "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+        "format_long_name": "QuickTime / MOV",
+        "start_time": "0.000000",
+        "duration": "57.133008",
+        "size": "2932219",
+        "bit_rate": "410581",
+        "probe_score": 100,
+        "tags": {
+            "major_brand": "isom",
+            "minor_version": "512",
+            "compatible_brands": "isomiso2mp41",
+            "encoder": "Lavf62.3.100",
+            "comment": "vid:v12044gd0000d51v51fog65sci8j7ang"
+        }
+    }
+}

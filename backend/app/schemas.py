@@ -24,10 +24,16 @@ class VideoCreateRequest(BaseModel):
     add_text_overlay: bool = False
     remove_watermark: bool = True
     
+    # Audio options
+    add_background_music: bool = False
+    bgm_style: str = "cheerful"  # cheerful, dramatic, cinematic, tech, lo-fi
+    normalize_audio: bool = True
+    
     # AI options
     ai_provider: Optional[str] = "auto"
     tts_voice: Optional[str] = None
-    narration_style: Optional[str] = "professional"  # professional, casual, dramatic
+    narration_style: Optional[str] = "viral"  # viral, review, storytelling, professional, hài hước, dramatic
+    rewrite_from_original: bool = True  # If True, transcribes original audio and rewrites it
     
     # Processing flow
     processing_flow: str = "auto"  # auto, fast, ai, full, custom
@@ -46,8 +52,13 @@ class StoryVideoRequest(BaseModel):
     font_color: str = "FFFFFF"
     text_position: str = "bottom"
     
+    # Audio options
+    background_music: bool = True
+    bgm_style: str = "cinematic"
+    normalize_audio: bool = True
+    
     # AI options
-    story_style: str = "narrative"  # narrative, dramatic, humorous, educational
+    story_style: str = "storytelling"  # narrative, dramatic, humorous, viral, storytelling
     ai_provider: Optional[str] = "auto"
     tts_voice: Optional[str] = None
 
@@ -118,7 +129,7 @@ class ProcessingFlowOption(BaseModel):
     label: str
     description: str
     duration_estimate: int  # seconds
-    cost_estimate: Optional[str]
+    cost_estimate: Optional[str] = None
     options: dict
 
 
@@ -256,5 +267,76 @@ class HighlightExtractionRequest(BaseModel):
     source_url: str
     target_duration: int = 60  # Target output duration in seconds
     num_highlights: int = 5
-    style: str = "engaging"  # engaging, informative, dramatic
+class SeriesCreateRequest(BaseModel):
+    """Request to create multi-part video series"""
+    source_url: str
+    topic: str
+    num_parts: int = 3
+    target_platform: str = "tiktok"
+    voice_style: str = "cynical" # cynical, emotional, engaging
+    bgm_style: str = "dramatic"
     ai_provider: Optional[str] = "auto"
+    tts_provider: Optional[str] = "auto"
+    tts_voice: Optional[str] = None
+
+
+# ==================== YOUTUBE ANALYZER SCHEMAS ====================
+
+class YouTubeAnalyzeRequest(BaseModel):
+    """Request to analyze YouTube video"""
+    youtube_url: str
+    include_transcript: bool = True
+    include_channel_analysis: bool = False
+    min_score_threshold: float = 6.0
+    target_platforms: List[str] = ["youtube", "tiktok", "facebook"]
+
+
+class YouTubeChannelRequest(BaseModel):
+    """Request to analyze YouTube channel"""
+    channel_url: str
+    max_videos: int = 50
+    include_recommendations: bool = True
+
+
+class YouTubeBatchRequest(BaseModel):
+    """Request for batch video processing"""
+    video_ids: List[str]
+    filters: Optional[dict] = None
+    processing_config: Optional[dict] = None
+
+
+class AnalysisJobResponse(BaseModel):
+    """Response for analysis job creation"""
+    success: bool
+    job_id: str
+    message: str
+
+
+class AnalysisScoreBreakdown(BaseModel):
+    """Score breakdown for a single criteria"""
+    score: float
+    weight: float
+    weighted: float
+    reasoning: str
+
+
+class AnalysisResult(BaseModel):
+    """Complete analysis result"""
+    job_id: str
+    status: str
+    progress: float
+    video_info: Optional[dict] = None
+    engagement: Optional[dict] = None
+    transcript: Optional[dict] = None
+    nlp_analysis: Optional[dict] = None
+    policy_check: Optional[dict] = None
+    scoring: Optional[dict] = None
+    recommendation: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class ReportExportRequest(BaseModel):
+    """Request to export analysis report"""
+    job_id: str
+    format: str = "json"  # json, pdf, csv
+    include_transcript: bool = True

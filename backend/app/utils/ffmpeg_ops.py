@@ -20,21 +20,54 @@ class FFmpegOps:
     """FFmpeg wrapper for video operations"""
 
     def __init__(self):
-        self.ffmpeg_path = settings.FFMPEG_PATH
-        self.ffprobe_path = settings. FFPROBE_PATH
+        # Get from settings, with fallback to backend directory
+        ffmpeg_path = settings.FFMPEG_PATH
+        ffprobe_path = settings.FFPROBE_PATH
+        
+        # If settings have simple 'ffmpeg' or 'ffprobe', look for exe in backend dir
+        backend_dir = Path(__file__).resolve().parents[2]
+        
+        if ffmpeg_path == "ffmpeg" or not Path(ffmpeg_path).exists():
+            local_ffmpeg = backend_dir / "ffmpeg.exe"
+            if local_ffmpeg.exists():
+                ffmpeg_path = str(local_ffmpeg)
+                
+        if ffprobe_path == "ffprobe" or not Path(ffprobe_path).exists():
+            local_ffprobe = backend_dir / "ffprobe.exe"
+            if local_ffprobe.exists():
+                ffprobe_path = str(local_ffprobe)
+        
+        self.ffmpeg_path = ffmpeg_path
+        self.ffprobe_path = ffprobe_path
+        logger.info(f"FFmpegOps initialized: ffmpeg={self.ffmpeg_path}, ffprobe={self.ffprobe_path}")
 
-    async def _run_command(self, cmd: list[str]) -> Tuple[int, str, str]:
-        """Run FFmpeg command asynchronously"""
-        try: 
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess. PIPE,
+    async def _run_command(self, cmd: list[str], timeout: int = 600) -> Tuple[int, str, str]:
+        """Run FFmpeg command - using subprocess.run for better Windows compatibility"""
+        import subprocess
+        try:
+            logger.info(f"Running FFmpeg command: {cmd[0]} ... (timeout={timeout}s)")
+            logger.debug(f"Full command: {' '.join(cmd)}")
+            
+            # Use Popen with proper pipe handling to prevent buffer overflow
+            result = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,  # Discard stderr to prevent buffer overflow
+                    timeout=timeout,
+                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0,
+                )
             )
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=3600)
-            return process.returncode, stdout.decode(), stderr.decode()
-        except asyncio.TimeoutError:
-            raise FFmpegError("FFmpeg command timed out")
+            stdout = result.stdout.decode('utf-8', errors='ignore') if result.stdout else ""
+            logger.info(f"FFmpeg command completed with code {result.returncode}")
+            return result.returncode, stdout, ""
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"FFmpeg command timed out after {timeout}s")
+            raise FFmpegError(f"FFmpeg command timed out after {timeout}s")
+        except Exception as e:
+            logger.error(f"FFmpeg command failed: {str(e)}")
+            raise FFmpegError(f"Failed to run command: {str(e)}")
 
     async def get_video_info(self, video_path: Path) -> dict[str, Any]:
         """Get video information using ffprobe"""
@@ -42,19 +75,25 @@ class FFmpegOps:
             cmd = [
                 self.ffprobe_path,
                 "-v", "error",
-                "-select_streams", "v: 0",
-                "-show_entries",
-                "format=duration,size: stream=width,height,r_frame_rate,codec_name",
+                "-select_streams", "v:0",
+                "-show_entries", "format=duration,size:stream=width,height,r_frame_rate,codec_name",
                 "-of", "json",
                 str(video_path),
             ]
+            
+            logger.info(f"Running ffprobe: {' '.join(cmd)}")
 
             returncode, stdout, stderr = await self._run_command(cmd)
             
             if returncode != 0:
+                logger.error(f"ffprobe failed with code {returncode}: {stderr}")
                 raise FFmpegError(f"ffprobe error: {stderr}")
 
-            data = json. loads(stdout)
+            if not stdout.strip():
+                logger.error("ffprobe returned empty output")
+                raise FFmpegError("ffprobe returned empty output")
+
+            data = json.loads(stdout)
             
             format_info = data.get("format", {})
             stream_info = data.get("streams", [{}])[0]
@@ -64,17 +103,22 @@ class FFmpegOps:
             fps_parts = fps_str.split("/")
             fps = float(fps_parts[0]) / float(fps_parts[1]) if len(fps_parts) == 2 else 30.0
 
-            return {
+            result = {
                 "duration": float(format_info.get("duration", 0)),
                 "size": int(format_info.get("size", 0)),
                 "width": int(stream_info.get("width", 1920)),
                 "height": int(stream_info.get("height", 1080)),
                 "fps": fps,
-                "codec":  stream_info.get("codec_name", "h264"),
+                "codec": stream_info.get("codec_name", "h264"),
             }
+            logger.info(f"Video info: {result}")
+            return result
 
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse ffprobe JSON output: {e}, stdout: {stdout[:500]}")
+            raise FFmpegError(f"Failed to parse ffprobe output: {str(e)}")
         except Exception as e:
-            logger. error(f"Error getting video info: {e}")
+            logger.error(f"Error getting video info: {e}")
             raise FFmpegError(f"Failed to get video info: {str(e)}")
 
     async def extract_audio(self, video_path: Path, output_audio: Path) -> Path:
@@ -109,36 +153,200 @@ class FFmpegOps:
         video_path: Path,
         audio_path: Path,
         output_path: Path,
+        loop_audio: bool = False,
+        mix_with_original: bool = False,  # Changed: Mute original audio by default
     ) -> Path:
-        """Replace video audio with new audio"""
+        """Replace or mix audio in video. Keeps original video duration."""
         try:
-            logger.info(f"Replacing audio in {video_path}")
+            logger.info(f"Replacing audio in {video_path} with {audio_path}")
             output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Validate audio file exists and has content
+            if not audio_path.exists():
+                logger.error(f"Audio file not found: {audio_path}")
+                raise FFmpegError(f"Audio file not found: {audio_path}")
+            
+            audio_size = audio_path.stat().st_size
+            if audio_size < 1000:  # Less than 1KB is likely invalid
+                logger.error(f"Audio file too small: {audio_size} bytes")
+                raise FFmpegError(f"Audio file appears invalid: {audio_size} bytes")
+            
+            logger.info(f"Audio file validated: {audio_path} ({audio_size} bytes)")
+
+            # Check if source video has audio stream
+            has_audio = await self._check_has_audio(video_path)
+            logger.info(f"Source video has audio: {has_audio}")
+
+            if mix_with_original and has_audio:
+                # Mix new audio with original (original at 20% volume)
+                cmd = [
+                    self.ffmpeg_path,
+                    "-i", str(video_path),
+                    "-i", str(audio_path),
+                    "-filter_complex", 
+                    "[0:a]volume=0.2[orig];[1:a]volume=1.0[new];[orig][new]amix=inputs=2:duration=first[aout]",
+                    "-map", "0:v",
+                    "-map", "[aout]",
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-y",
+                    str(output_path),
+                ]
+            else:
+                # Replace audio entirely (or source has no audio)
+                # This is the simpler and more reliable approach
+                cmd = [
+                    self.ffmpeg_path,
+                    "-i", str(video_path),
+                    "-i", str(audio_path),
+                    "-map", "0:v",      # Take video from first input
+                    "-map", "1:a",      # Take audio from second input
+                    "-c:v", "copy",     # Copy video codec (fast)
+                    "-c:a", "aac",      # Convert audio to AAC
+                    # "-shortest",      # REMOVED: Prevent cutting video short
+                    "-y",
+                    str(output_path),
+                ]
+
+            logger.info(f"Running audio replace command...")
+            returncode, stdout, stderr = await self._run_command(cmd)
+            
+            if returncode != 0:
+                logger.error(f"Audio replacement failed with code {returncode}")
+                # Fallback: Try simpler command without mixing
+                if mix_with_original:
+                    logger.info("Retrying without audio mixing...")
+                    cmd_simple = [
+                        self.ffmpeg_path,
+                        "-i", str(video_path),
+                        "-i", str(audio_path),
+                        "-map", "0:v",
+                        "-map", "1:a",
+                        "-c:v", "copy",
+                        "-c:a", "aac",
+                        # "-shortest",  # REMOVED
+                        "-y",
+                        str(output_path),
+                    ]
+                    returncode, stdout, stderr = await self._run_command(cmd_simple)
+                    
+                    if returncode != 0:
+                        logger.warning("Simple audio replace also failed, copying video as-is")
+                        import shutil
+                        shutil.copy(str(video_path), str(output_path))
+                        return output_path
+                else:
+                    logger.warning("Falling back to simple video copy...")
+                    import shutil
+                    shutil.copy(str(video_path), str(output_path))
+                    return output_path
+
+            # Validate output
+            if output_path.exists() and output_path.stat().st_size > 0:
+                logger.info(f"Audio replaced successfully, output: {output_path}")
+            else:
+                logger.warning(f"Output file missing or empty, copying original")
+                import shutil
+                shutil.copy(str(video_path), str(output_path))
+                
+            return output_path
+
+        except Exception as e:
+            logger.error(f"Audio replacement error: {e}")
+            # Last resort fallback
+            try:
+                import shutil
+                shutil.copy(str(video_path), str(output_path))
+                logger.info(f"Fallback: copied original video to {output_path}")
+                return output_path
+            except:
+                raise
+
+    async def add_background_music(
+        self,
+        voice_path: Path,
+        bgm_path: Path,
+        output_path: Path,
+        bgm_volume: float = 0.15,
+        voice_volume: float = 1.0,
+    ) -> Path:
+        """Mix voice narration with background music"""
+        try:
+            logger.info(f"Mixing BGM {bgm_path} with voice {voice_path}")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Build filter complex to loop BGM and mix
+            # [1:a]aloop=loop=-1:size=2e9 [bgm]; loops BGM
+            # [0:a]volume=1.0[v]; voice
+            # [bgm]volume=0.15[bgmv]; bgm volume
+            # [v][bgmv]amix=inputs=2:duration=first[out]
+            
+            filter_complex = (
+                f"[1:a]aloop=loop=-1:size=2e9,volume={bgm_volume}[bgm];"
+                f"[0:a]volume={voice_volume}[v];"
+                f"[v][bgm]amix=inputs=2:duration=first:dropout_transition=3[out]"
+            )
 
             cmd = [
                 self.ffmpeg_path,
-                "-i", str(video_path),
-                "-i", str(audio_path),
-                "-c:v", "copy",  # Copy video codec
-                "-c:a", "aac",   # Use AAC for audio
-                "-map", "0:v:0",
-                "-map", "1:a:0",
-                "-shortest",
+                "-i", str(voice_path),
+                "-i", str(bgm_path),
+                "-filter_complex", filter_complex,
+                "-map", "[out]",
+                "-c:a", "aac",
+                "-b:a", "192k",
                 "-y",
                 str(output_path),
             ]
 
             returncode, stdout, stderr = await self._run_command(cmd)
-            
             if returncode != 0:
-                raise FFmpegError(f"Audio replacement failed:  {stderr}")
+                logger.warning(f"BGM mixing failed, returning original voice: {stderr}")
+                import shutil
+                shutil.copy(str(voice_path), str(output_path))
+                return output_path
 
-            logger.info(f"Audio replaced, output:  {output_path}")
             return output_path
-
         except Exception as e:
-            logger.error(f"Audio replacement error: {e}")
-            raise
+            logger.error(f"Error mixing BGM: {e}")
+            return voice_path
+
+    async def normalize_audio(self, audio_path: Path, output_path: Path) -> Path:
+        """Normalize audio to professional standards (Loudnorm)"""
+        try:
+            logger.info(f"Normalizing audio: {audio_path}")
+            cmd = [
+                self.ffmpeg_path,
+                "-i", str(audio_path),
+                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
+                "-c:a", "aac",
+                "-b:a", "192k",
+                "-y",
+                str(output_path),
+            ]
+            returncode, stdout, stderr = await self._run_command(cmd)
+            return output_path if returncode == 0 else audio_path
+        except:
+            return audio_path
+
+    async def _check_has_audio(self, video_path: Path) -> bool:
+        """Check if video has audio stream"""
+        try:
+            cmd = [
+                self.ffprobe_path,
+                "-v", "error",
+                "-select_streams", "a",
+                "-show_entries", "stream=codec_type",
+                "-of", "json",
+                str(video_path),
+            ]
+            returncode, stdout, stderr = await self._run_command(cmd)
+            if returncode == 0 and stdout.strip():
+                data = json.loads(stdout)
+                return len(data.get("streams", [])) > 0
+            return False
+        except:
+            return False
 
     async def add_text_overlay(
         self,
@@ -146,22 +354,22 @@ class FFmpegOps:
         text_segments: list[dict],  # [{"start": 0, "end": 5, "text": "Hello", "style": {... }}]
         output_path: Path,
         font_path: Optional[Path] = None,
-        font_size: int = 60,
-        font_color: str = "white",
+        font_size: int = 70,
+        font_color: str = "yellow",
         bg_color: str = "black",
-        bg_alpha: float = 0.7,
-        position: str = "bottom",  # top, center, bottom
+        bg_alpha: float = 0.5,
+        position: str = "center",  # top, center, bottom
     ) -> Path:
-        """Add text overlay to video with timing"""
+        """Add text overlay to video with timing and advanced styling"""
         try:
-            logger. info(f"Adding text overlay to {video_path}")
+            logger. info(f"Adding advanced text overlay to {video_path}")
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            font_path = font_path or Path(settings.DEFAULT_FONT_FILE)
-            if not font_path.exists():
-                logger.warning(f"Font not found: {font_path}, using default")
-                font_path = None
-
+            # Fallback font discovery if not provided
+            if not font_path:
+                # Use same discovery as before but simplified for readability
+                font_path = Path("C:/Windows/Fonts/arialbd.ttf") if Path("C:/Windows/Fonts/arialbd.ttf").exists() else None
+            
             # Get video info for positioning
             video_info = await self.get_video_info(video_path)
             width = video_info["width"]
@@ -172,58 +380,85 @@ class FFmpegOps:
             
             for i, seg in enumerate(text_segments):
                 start = seg. get("start", 0)
-                end = seg.get("end", 10)
-                text = seg.get("text", "").replace("'", "\\'").replace('"', '\\"')
+                end = seg.get("end", 1.0)
+                raw_text = seg.get("text", "").strip()
+                if not raw_text: continue
+                
+                # Dynamic captions for Shorts are often UPPERCASE
+                text = raw_text.upper().replace("'", "\\'").replace('"', '\\"').replace(":", "\\:")
+                
+                # Use segment-specific style if exists, else defaults
+                s = seg.get("style", {})
+                f_size = s.get("font_size", font_size)
+                f_color = s.get("font_color", font_color)
+                b_color = s.get("bg_color", bg_color)
+                b_alpha = s.get("bg_alpha", bg_alpha)
+                pos = s.get("position", position)
                 
                 # Position calculation
-                if position == "top": 
-                    y_pos = int(height * 0.1)
-                elif position == "center":
-                    y_pos = int((height - font_size) / 2)
+                if pos == "top": 
+                    y_pos = int(height * 0.15)
+                elif pos == "center":
+                    y_pos = int((height - f_size) / 2)
                 else:  # bottom
-                    y_pos = int(height - font_size - 20)
+                    y_pos = int(height - f_size - 100)
                 
-                x_pos = int((width - len(text) * font_size * 0.5) / 2)  # center x
+                # Center horizontally
+                # Rough estimate of text width: chars * size * factor
+                text_width_est = len(text) * f_size * 0.55
+                x_pos = int((width - text_width_est) / 2)
 
                 # Font path handling
-                font_arg = f": fontfile={str(font_path)}" if font_path else ""
+                font_path_str = str(font_path).replace('\\', '/') if font_path else ""
+                font_arg = f": fontfile='{font_path_str}'" if font_path else ""
+                
+                # Style components: Box background
+                box_arg = f": box=1: boxcolor={b_color}@{b_alpha}: boxborderw=10" if b_alpha > 0 else ""
+                
+                # Shadow & Border (adds "premium" feel)
+                border_arg = f": borderw=3: bordercolor=black"
+                shadow_arg = f": shadowx=3: shadowy=3: shadowcolor=black"
                 
                 # Create text filter with timing
-                text_filter = f"drawtext=text='{text}': fontsize={font_size}: fontcolor={font_color}: x={x_pos}:y={y_pos}:enable='between(t,{start},{end})'{font_arg}"
+                text_filter = (
+                    f"drawtext=text='{text}': fontsize={f_size}: fontcolor={f_color}: "
+                    f"x={x_pos}: y={y_pos}: enable='between(t,{start},{end})'"
+                    f"{font_arg}{box_arg}{border_arg}{shadow_arg}"
+                )
                 
                 filters.append(text_filter)
 
             # Combine all filters
-            if filters:
-                filter_complex = ",".join(filters)
-            else:
-                filter_complex = None
+            if not filters:
+                import shutil
+                shutil.copy(str(video_path), str(output_path))
+                return output_path
+
+            # FFmpeg can handle hundreds of filters but it might be long
+            # If too many filters, we might need a filter_script file
+            filter_complex = ",".join(filters)
 
             # Build command
             cmd = [
                 self.ffmpeg_path,
                 "-i", str(video_path),
-                "-c:a", "aac",
-                "-b:a", settings.AUDIO_BITRATE,
+                "-vf", filter_complex,
+                "-c:a", "copy", # Keep audio as is
+                "-c:v", settings.VIDEO_CODEC,
+                "-preset", "veryfast", # Speed over compression for previews
                 "-y",
+                str(output_path)
             ]
-
-            if filter_complex:
-                cmd. extend(["-vf", filter_complex])
-
-            cmd.extend(["-c:v", settings.VIDEO_CODEC, "-preset", settings.VIDEO_PRESET])
-            cmd.append(str(output_path))
 
             returncode, stdout, stderr = await self._run_command(cmd)
             
             if returncode != 0:
-                raise FFmpegError(f"Text overlay failed: {stderr}")
+                raise FFmpegError(f"Advanced text overlay failed: {stderr}")
 
-            logger.info(f"Text overlay added, output: {output_path}")
             return output_path
 
         except Exception as e:
-            logger. error(f"Text overlay error:  {e}")
+            logger. error(f"Advanced text overlay error:  {e}")
             raise
 
     async def cut_video(
@@ -320,9 +555,9 @@ class FFmpegOps:
             cmd = [
                 self.ffmpeg_path,
                 "-i", str(video_path),
-                "-vf", f"scale={width}:{height}",
-                "-c: v", settings.VIDEO_CODEC,
-                "-preset", settings. VIDEO_PRESET,
+                "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+                "-c:v", settings.VIDEO_CODEC,
+                "-preset", settings.VIDEO_PRESET,
                 "-c:a", "aac",
                 "-y",
                 str(output_path),

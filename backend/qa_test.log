@@ -1,0 +1,27 @@
+2026-01-18 02:41:33,933 [INFO] START: System Health Check
+2026-01-18 02:41:40,167 [INFO] System Health: {
+  "api": true,
+  "database": false,
+  "redis": false,
+  "storage": true,
+  "ai_services": {
+    "openai": true,
+    "google": true
+  },
+  "queue_size": 0,
+  "active_jobs": 0,
+  "uptime": 15207.53275513649
+}
+2026-01-18 02:41:40,167 [INFO] PASS: System Health Check (Duration: 6.23s)
+2026-01-18 02:41:40,167 [INFO] START: Reup Pipeline (Fast)
+2026-01-18 02:41:40,271 [INFO] Reup Job ID: 35b8a131-1eba-4052-aba2-74d57e033534
+2026-01-18 02:41:40,316 [ERROR] FAIL: Reup Pipeline (Fast) (Duration: 0.15s) - Error: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-01-18 02:41:40,317 [ERROR] Reup Test Failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-01-18 02:41:40,317 [INFO] START: Analyzer Pipeline
+2026-01-18 02:41:42,398 [INFO] Analyzer Job ID: 409a63c3-6816-4b4d-8d13-2602534761ba
+2026-01-18 02:41:45,557 [ERROR] FAIL: Analyzer Pipeline (Duration: 5.24s) - Error: Job 409a63c3-6816-4b4d-8d13-2602534761ba FAILED: Video ingestion failed
+2026-01-18 02:41:45,557 [ERROR] Analyzer Test Skipped/Failed: Job 409a63c3-6816-4b4d-8d13-2602534761ba FAILED: Video ingestion failed
+2026-01-18 02:41:45,558 [INFO] ============================================================
+2026-01-18 02:41:45,558 [INFO] TEST SUITE COMPLETE. Satisfaction Score: 70/100
+2026-01-18 02:41:45,559 [INFO] Report saved to test_execution_report.json
+2026-01-18 02:41:45,559 [INFO] ============================================================

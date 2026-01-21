@@ -1,12 +1,10 @@
 # app/core/config.py
 from __future__ import annotations
-
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Any, Dict, Union
 
-from pydantic import Field, validator
+from pydantic import Field, validator, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 def _backend_dir() -> Path:
     """Get backend directory path"""
@@ -48,10 +46,19 @@ class Settings(BaseSettings):
     FONTS_DIR: Path = Field(default_factory=lambda: _backend_dir() / "data" / "fonts")
 
     # ==================== CORS ====================
-    CORS_ORIGINS: List[str] = Field(
+    CORS_ORIGINS: Union[List[str], str] = Field(
         default=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000"],
         env="CORS_ORIGINS",
     )
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Any) -> Any:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",")]
+        elif isinstance(v, (list, str)):
+            return v
+        raise ValueError(v)
 
     # ==================== DATABASE ====================
     DATABASE_URL:  str = Field(
@@ -79,8 +86,15 @@ class Settings(BaseSettings):
     GOOGLE_PROJECT_ID:  Optional[str] = Field(default=None, env="GOOGLE_PROJECT_ID")
     GOOGLE_TTS_VOICE: str = Field(default="en-US-Standard-A", env="GOOGLE_TTS_VOICE")
     
-    # Groq (OpenAI-compatible)
+    # YouTube Data API
+    YOUTUBE_API_KEY: Optional[str] = Field(default=None, env="YOUTUBE_API_KEY")
+    
+    # Gemini AI (uses GOOGLE_API_KEY if not set)
+    GEMINI_API_KEY: Optional[str] = Field(default=None, env="GEMINI_API_KEY")
+    
+    # Groq (OpenAI-compatible) - FREE API
     GROQ_API_KEY: Optional[str] = Field(default=None, env="GROQ_API_KEY")
+    GROQ_MODEL: str = Field(default="llama-3.1-8b-instant", env="GROQ_MODEL")  # Fast, free model
     
     # Speech Recognition
     WHISPER_MODEL: str = Field(default="base", env="WHISPER_MODEL")  # tiny, base, small, medium, large
@@ -107,9 +121,18 @@ class Settings(BaseSettings):
     # Edge TTS (FREE - no API key needed)
     EDGE_TTS_VOICE: str = Field(default="vi-VN-HoaiMyNeural", env="EDGE_TTS_VOICE")  # Vietnamese Neural voice
 
+    # Custom AI (e.g. via ngrok/local server)
+    CUSTOM_AI_URL: Optional[str] = Field(default=None, env="CUSTOM_AI_URL")
+    CUSTOM_AI_MODEL: str = Field(default="custom-model", env="CUSTOM_AI_MODEL")
+
+    # ==================== AUDIO SETTINGS ====================
+    ENABLE_BGM: bool = Field(default=True, env="ENABLE_BGM")
+    BGM_VOLUME: float = Field(default=0.15, env="BGM_VOLUME")  # Default background music volume
+    DEFAULT_BGM_PATH: Optional[str] = Field(default="data/background_music/default.mp3", env="DEFAULT_BGM_PATH")
+
     # ==================== VIDEO PROCESSING ====================
-    FFMPEG_PATH: str = Field(default="ffmpeg", env="FFMPEG_PATH")
-    FFPROBE_PATH:  str = Field(default="ffprobe", env="FFPROBE_PATH")
+    FFMPEG_PATH: str = Field(default=str(Path(__file__).resolve().parents[2] / "ffmpeg.exe"), env="FFMPEG_PATH")
+    FFPROBE_PATH: str = Field(default=str(Path(__file__).resolve().parents[2] / "ffprobe.exe"), env="FFPROBE_PATH")
     
     # Video quality settings
     VIDEO_CODEC: str = Field(default="libx264", env="VIDEO_CODEC")
@@ -118,7 +141,7 @@ class Settings(BaseSettings):
     AUDIO_BITRATE: str = Field(default="192k", env="AUDIO_BITRATE")
 
     # ==================== TEXT OVERLAY SETTINGS ====================
-    DEFAULT_FONT_FILE: str = Field(default="data/fonts/Arial.ttf", env="DEFAULT_FONT_FILE")
+    DEFAULT_FONT_FILE: str = Field(default="C:/Windows/Fonts/arial.ttf", env="DEFAULT_FONT_FILE")
     DEFAULT_FONT_SIZE: int = Field(default=60, env="DEFAULT_FONT_SIZE")
     DEFAULT_FONT_COLOR: str = Field(default="FFFFFF", env="DEFAULT_FONT_COLOR")  # Hex color
     DEFAULT_TEXT_POSITION: str = Field(default="bottom", env="DEFAULT_TEXT_POSITION")  # top, center, bottom
@@ -141,6 +164,10 @@ class Settings(BaseSettings):
     ENABLE_TRANSCRIPTION: bool = Field(default=True, env="ENABLE_TRANSCRIPTION")
     ENABLE_STORY_GENERATION: bool = Field(default=True, env="ENABLE_STORY_GENERATION")
     ENABLE_TEXT_OVERLAY: bool = Field(default=True, env="ENABLE_TEXT_OVERLAY")
+
+    # ==================== GOOGLE DRIVE ====================
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = Field(default="credentials.json", env="GOOGLE_APPLICATION_CREDENTIALS")
+    GOOGLE_DRIVE_FOLDER_ID: Optional[str] = Field(default=None, env="GOOGLE_DRIVE_FOLDER_ID")
 
 
 settings = Settings()

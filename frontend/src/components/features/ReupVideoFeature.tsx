@@ -64,9 +64,13 @@ export function ReupVideoFeature() {
         add_ai_narration: currentOptions.addAiNarration,
         add_text_overlay: currentOptions.addTextOverlay,
         remove_watermark: currentOptions.removeWatermark,
+        add_background_music: currentOptions.addBackgroundMusic,
+        bgm_style: currentOptions.bgmStyle,
+        normalize_audio: currentOptions.normalizeAudio,
         ai_provider: currentOptions.aiProvider,
         tts_voice: selectedVoice,
         narration_style: currentOptions.narrationStyle,
+        rewrite_from_original: currentOptions.rewriteFromOriginal,
         processing_flow: currentOptions.processingFlow,
       });
 
@@ -209,9 +213,12 @@ export function ReupVideoFeature() {
               onChange={(e) => setCurrentOptions({ narrationStyle: e.target.value as any })}
               className="app-control"
             >
-              <option value="professional">Chuyên nghiệp</option>
-              <option value="casual">Bình thường</option>
-              <option value="dramatic">Kịch tính</option>
+              <option value="viral">Viral (Nhanh, thu hút)</option>
+              <option value="review">Review (Đánh giá sản phẩm)</option>
+              <option value="storytelling">Kể chuyện (Cảm xúc)</option>
+              <option value="professional">Chuyên nghiệp (Phỏng vấn/Tin tức)</option>
+              <option value="hài hước">Hài hước (Vui nhộn)</option>
+              <option value="dramatic">Kịch tính (Căng thẳng)</option>
             </select>
           </div>
 
@@ -223,29 +230,56 @@ export function ReupVideoFeature() {
               className="app-control"
             >
               <option value="auto">Auto</option>
-              <option value="openai">OpenAI</option>
-              <option value="gemini">Google Gemini</option>
+              <option value="openai">OpenAI (Chất lượng cao nhất)</option>
+              <option value="gemini">Google Gemini (Thông minh)</option>
+              <option value="groq">Groq (Cực nhanh & Miễn phí)</option>
+              <option value="custom">Custom (Local/Ngrok)</option>
             </select>
           </div>
+
+          {currentOptions.addBackgroundMusic && (
+            <div>
+              <label className="block mb-2 text-sm font-medium text-gray-200">Nhạc nền (BGM Style)</label>
+              <select
+                value={currentOptions.bgmStyle}
+                onChange={(e) => setCurrentOptions({ bgmStyle: e.target.value })}
+                className="app-control border-purple-500/50"
+              >
+                <option value="cheerful">Vui tươi (Cheerful)</option>
+                <option value="dramatic">Kịch tính (Dramatic)</option>
+                <option value="cinematic">Điện ảnh (Cinematic)</option>
+                <option value="tech">Công nghệ (Tech)</option>
+                <option value="lofi">Lo-fi Chill</option>
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Toggles */}
-        <div className="grid grid-cols-1 gap-4 mt-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 mt-6 sm:grid-cols-2 lg:grid-cols-3">
           {[
             { key: "addSubtitles", label: "Thêm phụ đề" },
             { key: "addAiNarration", label: "Thêm lời thoại AI" },
+            { key: "rewriteFromOriginal", label: "Viết lại từ voice gốc" },
+            { key: "addBackgroundMusic", label: "Nhạc nền (BGM)" },
+            { key: "normalizeAudio", label: "Lọc âm & Cân bằng (Normalize)" },
             { key: "addTextOverlay", label: "Thêm chèn chữ" },
             { key: "removeWatermark", label: "Xóa watermark" },
           ].map((feature) => (
             <label
               key={feature.key}
-              className="flex items-center gap-3 p-3 border cursor-pointer rounded-xl border-white/10 bg-white/5 hover:bg-white/10"
+              className={clsx(
+                "flex items-center gap-3 p-3 border cursor-pointer rounded-xl transition-all",
+                (currentOptions as any)[feature.key]
+                  ? "border-purple-500/50 bg-purple-500/10 shadow-lg shadow-purple-500/5"
+                  : "border-white/10 bg-white/5 hover:bg-white/10"
+              )}
             >
               <input
                 type="checkbox"
                 checked={(currentOptions as any)[feature.key]}
                 onChange={(e) => setCurrentOptions({ [feature.key]: e.target.checked } as any)}
-                className="w-5 h-5"
+                className="w-5 h-5 accent-purple-500"
               />
               <span className="font-medium text-gray-200">{feature.label}</span>
             </label>

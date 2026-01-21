@@ -20,18 +20,23 @@ Notes:
 - If you see errors about `psutil` missing, run `pip install psutil` or `pip install -r requirements.txt`.
 - If TikTok downloads fail with yt-dlp, try updating yt-dlp (`pip install -U yt-dlp`) or ensure the package version is recent.
 
-AI / Transcription providers:
-- You can let the app pick the best provider automatically by setting in `.env`:
-  - AI_PROVIDER=auto
-  - GROQ_API_KEY=...   # optional (preferred if available)
-  - GROQ_MODEL=llama-3.1-70b-versatile
-  - OPENAI_API_KEY=... # optional fallback
-  - GEMINI_API_KEY=... # optional
-  - DEEPGRAM_API_KEY=... # optional for transcript extraction (recommended)
+AI / Narration Features:
+- **Conversational Narration**: Uses advanced prompts (Viral, Review, Storytelling, Professional, Hài hước) for natural scripts.
+- **Flexible Providers**: 
+  - **Auto**: Automatic best-effort selection.
+  - **OpenAI**: High-quality (API Key required).
+  - **Gemini**: Smart context (API Key required).
+  - **Groq**: Near-instant inference (API Key required).
+  - **Custom AI**: Local LLMs/Ngrok via `CUSTOM_AI_URL`.
+- **Key Env Vars**:
+  - `AI_PROVIDER=auto`
+  - `CUSTOM_AI_URL=http://localhost:11434/v1` (for Ollama/Local)
+  - `GROQ_API_KEY=...`
 
-Important: If using Deepgram for transcription, FFmpeg must be available to extract WAV audio (see above).
+Professional Audio Engineering:
+- **Normalization**: Automatic volume leveling (EBU R128).
+- **Background Music (BGM)**: Place `.mp3` files in `backend/data/bgm/` (e.g., `cheerful.mp3`, `dramatic.mp3`) to enable themed mixing.
 
-Database schema updates:
-- If you see an error like "column video_jobs.processing_flow does not exist", run the provided script to apply lightweight runtime schema fixes:
-  - `python scripts/ensure_schema.py`
-- In production, prefer applying proper Alembic migrations; the above script is intended for development/demo environments only.
+Database & Schema:
+- If column errors occur, run: `python scripts/ensure_schema.py`
+- This applies lightweight dev-mode schema fixes.

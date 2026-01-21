@@ -136,6 +136,11 @@ class APIClient {
     return data;
   }
 
+  async createStorySeries(request: any) {
+    const { data } = await this.client.post('/story-series/create', request);
+    return data;
+  }
+
   async getJobStatus(jobId: string) {
     const { data } = await this.client.get(`/videos/job/${jobId}`);
     return data;

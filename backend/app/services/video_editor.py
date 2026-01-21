@@ -19,10 +19,12 @@ class VideoEditor:
         video_path: Path,
         target_duration: int = 60,
         target_platform: str = "tiktok",
-        add_text:  bool = True,
+        add_text: bool = True,
         text_segments: Optional[list[dict]] = None,
         new_audio_path: Optional[Path] = None,
         output_path: Optional[Path] = None,
+        bgm_style: str = "cheerful",
+        normalize_audio: bool = True,
     ) -> dict[str, Any]:
         """
         Process video for reupload with AI narration and text
@@ -35,53 +37,83 @@ class VideoEditor:
             text_segments: Text segments with timing
             new_audio_path:   New AI narration audio path
             output_path: Output video path
-
+            bgm_style: Style of background music to add (e.g., "cheerful", "epic")
+            normalize_audio: Whether to normalize the new audio
         Returns:
             Processing result with metadata
         """
         try:
             logger.info(f"Processing video for {target_platform} reup")
-            output_path = output_path or Path(settings.PROCESSED_DIR) / f"reup_{video_path.stem}. mp4"
+            output_path = output_path or Path(settings.PROCESSED_DIR) / f"reup_{video_path.stem}.mp4"
             output_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Get video info
+            logger.info("Step 1: Getting video info...")
             video_info = await ffmpeg_ops.get_video_info(video_path)
             logger.info(f"Video info: {video_info}")
 
             # Resize if needed based on platform
+            logger.info(f"Step 2: Resizing for platform {target_platform}...")
             resized_video = await self._resize_for_platform(video_path, target_platform)
+            logger.info(f"Resized video: {resized_video}")
 
             # Replace audio if provided
             if new_audio_path:
-                logger.info("Replacing audio with AI narration")
+                logger.info("Step 3: Processing audio with AI narration...")
+                
+                # Step 3a: Normalize Narration
+                normalized_narration = Path(settings.TEMP_DIR) / f"norm_{new_audio_path.name}"
+                new_audio_path = await ffmpeg_ops.normalize_audio(new_audio_path, normalized_narration)
+                
+                # Step 3b: Add Background Music if requested
+                bgm_path = Path("data/bgm") / f"{bgm_style}.mp3"
+                
+                if bgm_path.exists():
+                    logger.info(f"Adding background music: {bgm_style}")
+                    mixed_audio = Path(settings.TEMP_DIR) / f"mixed_{new_audio_path.name}"
+                    new_audio_path = await ffmpeg_ops.add_background_music(
+                        new_audio_path, 
+                        bgm_path, 
+                        mixed_audio,
+                        bgm_volume=0.15
+                    )
+
                 video_with_audio = await ffmpeg_ops.replace_audio(
                     resized_video,
                     new_audio_path,
                     Path(settings.TEMP_DIR) / f"with_audio_{video_path.stem}.mp4",
                 )
+                logger.info(f"Audio replaced: {video_with_audio}")
             else:
                 video_with_audio = resized_video
+                logger.info("Step 3: No audio replacement needed")
 
             # Add text overlay if provided
             if add_text and text_segments:
-                logger. info(f"Adding {len(text_segments)} text segments")
+                logger.info(f"Step 4: Adding {len(text_segments)} text segments...")
                 final_video = await text_overlay_engine.add_styled_text(
                     video_with_audio,
                     text_segments,
                     output_path,
                 )
+                logger.info(f"Text added: {final_video}")
             else:
                 final_video = video_with_audio
                 if final_video != output_path:
                     import shutil
-                    shutil. copy(str(final_video), str(output_path))
+                    shutil.copy(str(final_video), str(output_path))
+                    logger.info(f"Copied to output: {output_path}")
+                else:
+                    logger.info("Step 4: No text overlay needed")
 
             # Generate thumbnail
+            logger.info("Step 5: Generating thumbnail...")
             thumbnail_path = await ffmpeg_ops.generate_thumbnail(
                 output_path,
                 timestamp=0,
-                output_path=Path(settings. PROCESSED_DIR) / f"{output_path.stem}_thumb.jpg",
+                output_path=Path(settings.PROCESSED_DIR) / f"{output_path.stem}_thumb.jpg",
             )
+            logger.info(f"Thumbnail generated: {thumbnail_path}")
 
             return {
                 "success": True,
@@ -97,6 +129,20 @@ class VideoEditor:
                 "success": False,
                 "error": str(e),
             }
+
+    async def get_video_info(self, video_path: Path) -> dict[str, Any]:
+        """Get video information using ffmpeg_ops"""
+        return await ffmpeg_ops.get_video_info(video_path)
+
+    async def cut_video(
+        self,
+        video_path: Path,
+        start_time: float,
+        end_time: float,
+        output_path: Path,
+    ) -> Path:
+        """Cut a single segment from video"""
+        return await ffmpeg_ops.cut_video(video_path, start_time, end_time, output_path)
 
     async def cut_and_merge_video(
         self,
@@ -147,12 +193,12 @@ class VideoEditor:
             raise
 
     async def _resize_for_platform(self, video_path: Path, platform: str) -> Path:
-        """Resize video for specific platform"""
+        """Resize video for specific platform - skip if already correct aspect ratio"""
         # Platform aspect ratios
         platform_sizes = {
             "tiktok": (1080, 1920),      # 9:16
             "youtube": (1920, 1080),      # 16:9
-            "instagram":  (1080, 1080),    # 1:1
+            "instagram": (1080, 1080),    # 1:1
             "facebook": (1200, 630),      # Landscape
             "douyin": (1080, 1920),       # 9:16
             "twitter": (1200, 675),       # 16:9
@@ -162,10 +208,25 @@ class VideoEditor:
 
         # Check if resize needed
         video_info = await ffmpeg_ops.get_video_info(video_path)
-        if video_info["width"] == target_size[0] and video_info["height"] == target_size[1]:
+        current_width = video_info["width"]
+        current_height = video_info["height"]
+        
+        # Calculate aspect ratios
+        current_ratio = current_width / current_height if current_height > 0 else 1
+        target_ratio = target_size[0] / target_size[1]
+        
+        # Skip resize if:
+        # 1. Already exact match
+        # 2. Already correct aspect ratio (within 5% tolerance)
+        if (current_width == target_size[0] and current_height == target_size[1]):
+            logger.info(f"Video already at target size {target_size}, skipping resize")
+            return video_path
+            
+        if abs(current_ratio - target_ratio) < 0.05:
+            logger.info(f"Video already has correct aspect ratio ({current_ratio:.2f} ≈ {target_ratio:.2f}), skipping resize")
             return video_path
 
-        logger.info(f"Resizing video to {target_size} for {platform}")
+        logger.info(f"Resizing video from {current_width}x{current_height} to {target_size} for {platform}")
         resized_path = Path(settings.TEMP_DIR) / f"resized_{video_path.stem}.mp4"
 
         return await ffmpeg_ops.resize_video(
@@ -181,6 +242,8 @@ class VideoEditor:
         story_text: str,
         audio_path: Path,
         output_path: Optional[Path] = None,
+        bgm_style: str = "cheerful",
+        normalize_audio: bool = True,
     ) -> Path:
         """
         Generate story-based video with narration
@@ -208,6 +271,8 @@ class VideoEditor:
                 text_segments=segments,
                 new_audio_path=audio_path,
                 output_path=output_path,
+                bgm_style=bgm_style,
+                normalize_audio=normalize_audio,
             )
 
             return output_path if result["success"] else None
@@ -227,8 +292,8 @@ class VideoEditor:
 
         # Group words into logical segments (e.g., sentences or phrases)
         while i < len(words):
-            # Find sentence end
-            j = min(i + 5, len(words))  # ~5 words per segment
+            # Find sentence end - use 2-3 words for high energy Shorts
+            j = min(i + 2, len(words)) 
             segment_text = " ".join(words[i:j])
 
             start = current_time
